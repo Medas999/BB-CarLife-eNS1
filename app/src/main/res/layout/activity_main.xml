@@ -22,6 +22,12 @@
             tools:text="" />
     </ScrollView>
 
+    <Button
+        android:id="@+id/mirror"
+        android:layout_width="180dp"
+        android:layout_height="56dp"
+        android:text="START MIRROR" />
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -60,7 +66,7 @@
 
         <EditText
             android:id="@+id/bit"
-            android:layout_width="30dp"
+            android:layout_width="60dp"
             android:layout_height="50dp" />
 
         <TextView
