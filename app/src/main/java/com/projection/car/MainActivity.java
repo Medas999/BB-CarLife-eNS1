@@ -142,9 +142,9 @@ public class MainActivity extends AppCompatActivity {
         mMsgProcess = new MsgProcess(this, mVideoBit, mVideoFrame, new MsgProcess.InfoListener() {
             @Override
             public void onVISSize(int x, int y) {
-                wTxt.setText("HU width: " + x);
-                hTxt.setText("HU height: " + y);
-                uiLog("Head unit video size: " + x + " x " + y);
+                wTxt.setText("Video width: " + x);
+                hTxt.setText("Video height: " + y);
+                uiLog("Video target: " + x + " x " + y);
             }
 
             @Override
@@ -231,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 if (mLog != null) {
-                    mLog.append(text + "\n");
+                    mLog.setText(text + "\n" + mLog.getText());
                 }
             }
         });
