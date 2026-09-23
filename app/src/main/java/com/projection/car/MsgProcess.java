@@ -77,9 +77,6 @@ import static com.projection.car.Utils.log;
 
 public class MsgProcess {
 
-    private boolean testAduio = false;
-
-
     private volatile boolean usbOk;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
@@ -89,8 +86,6 @@ public class MsgProcess {
     private Handler mUsbReadHandler;
     private Handler mUsbWriteHandler;
 
-
-    private AudioHandler mAudioReadHandler;
 
     private MediaCodecTool mMediaCodecTool;
 
@@ -126,17 +121,8 @@ public class MsgProcess {
 
         mMediaCodecTool = new MediaCodecTool();
 
-        HandlerThread audioThread = new HandlerThread("audio");
-        audioThread.start();
-        mAudioReadHandler = new AudioHandler(audioThread.getLooper());
-
-
         startUsbTransferThread();
 
-        if (testAduio) {
-            mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
-            mAudioReadHandler.sendEmptyMessage(AudioHandler.AUDIO_START);
-        }
     }
 
     private Runnable runnable = new Runnable() {
@@ -173,15 +159,10 @@ public class MsgProcess {
         if (usbOk) {
             log("resetUsb");
             usbOk = false;
-            mAudioReadHandler.sendEmptyMessage(AudioHandler.AUDIO_STOP);
             mMediaCodecTool.stopProjection();
             mUsbWriteHandler.removeCallbacksAndMessages(null);
         }
 
-    }
-
-    public void startReadAudio() {
-        mAudioReadHandler.sendEmptyMessage(AudioHandler.AUDIO_START);
     }
 
 
