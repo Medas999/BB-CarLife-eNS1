@@ -76,8 +76,6 @@ import static com.projection.car.Utils.exportCMDMsg;
 import static com.projection.car.Utils.exportVideoMsg;
 import static com.projection.car.Utils.intToBytes2;
 import static com.projection.car.Utils.log;
-import static com.projection.car.Utils.nextSong;
-import static com.projection.car.Utils.previosSong;
 
 public class MsgProcess {
 
@@ -272,7 +270,6 @@ public class MsgProcess {
 
             log("now dispatchGesture time is " + gestureTime);
 
-            Utils.touch(mGestureMoveArray, gestureTime);
 
             GestureDescription.StrokeDescription sd = new GestureDescription.StrokeDescription(mGesturePath, 0, gestureTime);
 
@@ -556,11 +553,11 @@ public class MsgProcess {
                                                 log("keycode = " + keyCode.getKeycode());
                                                 switch (keyCode.getKeycode()) {
                                                     case KEYCODE_SEEK_SUB: {
-                                                        previosSong();
+                                                        log("HU previous-track key received");
                                                     }
                                                     break;
                                                     case KEYCODE_SEEK_ADD: {
-                                                        nextSong();
+                                                        log("HU next-track key received");
                                                     }
                                                     break;
                                                 }
