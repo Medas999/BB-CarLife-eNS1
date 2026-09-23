@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("BB-CarLife-eNS1 v0.3.1-mirror ready");
+        uiLog("eNS1 Mirror Test v0.4 ready");
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
