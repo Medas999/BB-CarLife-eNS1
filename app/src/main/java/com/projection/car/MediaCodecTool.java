@@ -1,17 +1,12 @@
 package com.projection.car;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
-import android.media.AudioFormat;
-import android.media.AudioPlaybackCaptureConfiguration;
-import android.media.AudioRecord;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
-import android.media.MediaRecorder;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjection.Callback;
 import android.media.projection.MediaProjectionManager;
@@ -19,8 +14,6 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import android.util.Log;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -46,25 +39,14 @@ public class MediaCodecTool {
     private int mHeight;
     private int mBit, mFrame;
 
-    private boolean testAudio = false;
     private volatile boolean projectionActive;
-    private FileOutputStream mOutputStream;
 
     MediaCodecTool() {
 
     }
 
     private void createVirtualDisplay() {
-        if (testAudio) {
-            try {
-                mOutputStream = new FileOutputStream("/sdcard/test.mp4");
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
-
-
-        log("VIS w = " + mWidth + ", h = " + mHeight);
+        log("VIS w =  + mWidth + ", h = " + mHeight);
         try {
             mMediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, mWidth, mHeight);
@@ -101,21 +83,11 @@ public class MediaCodecTool {
                         outputBuffer.get(outData);
                         // flags 利用位操作，定义的 flag 都是 2 的倍数
                         if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) { // 配置相关的内容，也就是 SPS，PPS
-                            if (testAudio) {
-                                mOutputStream.write(outData, 0, outData.length);
-                                mOutputStream.flush();
-                            }
-
-
                             mConfigByte = new byte[outData.length];
                             mFirstConfigFrame = true;
                             System.arraycopy(outData, 0, mConfigByte, 0, outData.length);
                             Log.e(TAG, "now CONFIG is" + Arrays.toString(mConfigByte));
                         } else if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) { // 关键帧
-                            if (testAudio) {
-                                mOutputStream.write(outData, 0, outData.length);
-                                mOutputStream.flush();
-                            }
                             if (mEncodeCall != null) {
                                 Log.e(TAG, "now frame is" + outData.length);
                                 if (mFirstConfigFrame) {
@@ -130,10 +102,6 @@ public class MediaCodecTool {
                             }
                         } else {
                             // 非关键帧和SPS、PPS,直接写入文件，可能是B帧或者P帧
-                            if (testAudio) {
-                                mOutputStream.write(outData, 0, outData.length);
-                                mOutputStream.flush();
-                            }
 
                             if (mEncodeCall != null) {
                                 mEncodeCall.onData(outData);
