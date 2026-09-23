@@ -16,6 +16,7 @@ import android.os.PowerManager;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -50,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView mLog;
     private EditText bitTxt, frameTxt;
     private TextView wTxt, hTxt, serialTxt;
+    private Button mirrorBtn;
+    private boolean mirrorPermissionRequested;
 
 
     private BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
@@ -120,6 +123,13 @@ public class MainActivity extends AppCompatActivity {
         wTxt = findViewById(R.id.w);
         hTxt = findViewById(R.id.h);
         serialTxt = findViewById(R.id.serial);
+        mirrorBtn = findViewById(R.id.mirror);
+        mirrorBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                requestMirror();
+            }
+        });
 
         final SharedPreferences sharedPreferences = getSharedPreferences("set", MODE_PRIVATE);
         mVideoBit = sharedPreferences.getInt("bit", 30);
@@ -175,10 +185,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void onActivityResult(int paramInt1, int paramInt2, Intent paramIntent) {
+        super.onActivityResult(paramInt1, paramInt2, paramIntent);
         if (paramInt1 == REQUEST_CODE) {
-
-            mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
+            boolean ok = mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
+            uiLog(ok ? "Screen capture active -> sending H.264 to CarLife video channel"
+                    : "Screen capture cancelled/failed");
         }
+    }
+
+    private void requestMirror() {
+        if (mMsgProcess == null) {
+            uiLog("Mirror unavailable: CarLife engine not ready");
+            return;
+        }
+        uiLog("Starting 1280x720 H.264 mirror...");
+        mMsgProcess.requestMirrorPermission();
     }
 
 
@@ -213,6 +234,11 @@ public class MainActivity extends AppCompatActivity {
 
                 mMsgProcess.startProjection(mInputStream, mOutputStream);
                 uiLog("USB opened. CarLife session started.");
+                if (!mirrorPermissionRequested) {
+                    mirrorPermissionRequested = true;
+                    uiLog("Requesting screen capture permission...");
+                    requestMirror();
+                }
 
                 mWakeLock.acquire();//保持屏幕唤醒
 
