@@ -47,6 +47,7 @@ public class MediaCodecTool {
     private int mBit, mFrame;
 
     private boolean testAudio = false;
+    private volatile boolean projectionActive;
     private FileOutputStream mOutputStream;
 
     MediaCodecTool() {
@@ -71,6 +72,11 @@ public class MediaCodecTool {
             mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mBit);//10
             mediaFormat.setInteger(MediaFormat.KEY_CAPTURE_RATE, mBit);//10
             mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+            mediaFormat.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
+            mediaFormat.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel31);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                mediaFormat.setInteger(MediaFormat.KEY_PRIORITY, 0);
+            }
             mediaFormat.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100000L);
             mediaFormat.setLong(MediaFormat.KEY_DURATION, 100000L);
             mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);//2130706433
@@ -151,6 +157,8 @@ public class MediaCodecTool {
                 }
             });
             mMediaCodec.start();
+            projectionActive = true;
+            log("H264 encoder started " + mWidth + "x" + mHeight + " fps=" + mBit + " bitrate=" + mFrame);
 
 
 //            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
@@ -221,7 +229,12 @@ public class MediaCodecTool {
         context.startActivityForResult(mProjectionManager.createScreenCaptureIntent(), code);
     }
 
+    public boolean isProjectionActive() {
+        return projectionActive;
+    }
+
     public void stopProjection() {
+        projectionActive = false;
         if (sMediaProjection != null) {
             try {
                 sMediaProjection.stop();
@@ -231,14 +244,18 @@ public class MediaCodecTool {
         }
     }
 
-    public void onActivityResult(Activity activity, int paramInt2, Intent paramIntent) {
-        sMediaProjection = mProjectionManager.getMediaProjection(paramInt2, paramIntent);
+    public boolean onActivityResult(Activity activity, int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK || data == null || mProjectionManager == null) {
+            return false;
+        }
+        sMediaProjection = mProjectionManager.getMediaProjection(resultCode, data);
         if (sMediaProjection != null) {
             mDensity = activity.getResources().getDisplayMetrics().densityDpi;
-            createVirtualDisplay();
             sMediaProjection.registerCallback(new MediaProjectionStopCallback(), null);
+            createVirtualDisplay();
+            return projectionActive;
         }
-
+        return false;
     }
 
 
@@ -249,8 +266,9 @@ public class MediaCodecTool {
         public void onStop() {
 
             Log.e(TAG, "stopping projection.");
+            projectionActive = false;
 
-            mMediaCodec.stop();
+            if (mMediaCodec != null) mMediaCodec.stop();
 
             if (mVirtualDisplay != null) {
                 mVirtualDisplay.release();
