@@ -72,7 +72,7 @@ public class ForgroundService extends AccessibilityService {
                 final Notification xiriNotification = notificationBuilder.setOngoing(true)
                         .setContentText("projection car")
                         .setWhen(System.currentTimeMillis())
-                        .setSmallIcon(R.drawable.ic_launcher_background)
+                        .setSmallIcon(R.drawable.ic_launcher)
                         .build();
                 startForeground(10010, xiriNotification);
             } else {
