@@ -29,6 +29,7 @@ import com.baidu.carlife.protobuf.CarlifeTouchActionProto;
 import com.example.car.CarlifeAuthenResultProto;
 import com.example.car.CarlifeDeviceInfoProto;
 import com.example.car.CarlifeProtocolVersionMatchStatusProto;
+import com.example.car.CarlifeProtocolVersionProto;
 import com.example.car.CarlifeStatisticsInfoProto;
 import com.example.car.CarlifeVideoEncoderInfoProto;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -220,6 +221,21 @@ public class MsgProcess {
         log("Touch received from HU (disabled in handshake-only build): type=" + type + ", x=" + g_x + ", y=" + g_y);
     }
 
+    private int readFully(FileInputStream in, byte[] buffer, int length) throws IOException {
+        int offset = 0;
+        while (offset < length) {
+            int read = in.read(buffer, offset, length - offset);
+            if (read < 0) {
+                throw new IOException("USB stream closed");
+            }
+            if (read == 0) {
+                continue;
+            }
+            offset += read;
+        }
+        return offset;
+    }
+
     private void startUsbTransferThread() {
         HandlerThread inthread = new HandlerThread("read");
         inthread.start();
@@ -234,7 +250,7 @@ public class MsgProcess {
                         while (usbOk) {
                             try {
                                 byte[] data = new byte[8];
-                                int len = mInputStream.read(data);
+                                int len = readFully(mInputStream, data, data.length);
 
                                 if (len == 8) {
                                     int msg_type = data[3];
@@ -242,7 +258,7 @@ public class MsgProcess {
                                     int msgLen = bytesToInt2(data, 4);
                                     log("msgLen = " + msgLen);
                                     byte[] msgdata = new byte[msgLen];
-                                    len = mInputStream.read(msgdata);
+                                    len = readFully(mInputStream, msgdata, msgdata.length);
                                     log("read data = " + Arrays.toString(msgdata));
                                     log("read msg data = " + len + " msgLen " + msgLen);
                                     short carmsgLen = bytesToShort2(msgdata, 0);
@@ -254,12 +270,21 @@ public class MsgProcess {
                                     if (msg_type == CMD) {
                                         switch (type) {
                                             case MSG_CMD_HU_PROTOCOL_VERSION: {
-                                                mInfoListener.onProtocolEvent("HU protocol version received");
-                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder = CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                try {
+                                                    CarlifeProtocolVersionProto.CarlifeProtocolVersion version =
+                                                            CarlifeProtocolVersionProto.CarlifeProtocolVersion.parseFrom(msgdata);
+                                                    mInfoListener.onProtocolEvent("HU protocol v" + version.getMajorVersion() + "." + version.getMinorVersion());
+                                                } catch (Exception e) {
+                                                    mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length + " bytes)");
+                                                }
+                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
                                                 builder.setMatchStatus(1);
                                                 byte[] result = builder.build().toByteArray();
-                                                log(" match = " + Arrays.toString(result));
-                                                mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result)).sendToTarget();
+                                                log("protocol match=1 " + Arrays.toString(result));
+                                                mInfoListener.onProtocolEvent("TX protocol match=1");
+                                                mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS,
+                                                        exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result)).sendToTarget();
                                             }
                                             break;
                                             case MSG_CMD_HU_INFO: {
@@ -335,7 +360,10 @@ public class MsgProcess {
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_MD_AUTHEN_RESULT, exportCMDMsg(MSG_CMD_MD_AUTHEN_RESULT, builder.build().toByteArray())).sendToTarget();
                                             }
                                             break;
-
+                                            default: {
+                                                mInfoListener.onProtocolEvent(String.format("RX CMD 0x%08X (%d bytes)", type, msgdata.length));
+                                            }
+                                            break;
 
                                         }
                                     } else if (msg_type == TOUCH) {
@@ -410,6 +438,7 @@ public class MsgProcess {
                             mOutputStream.write(headmsg);
                             log("msg=" + msg.what + "write data =" + Arrays.toString(headmsg));
                             mOutputStream.write(carLifeMsg);
+                            mOutputStream.flush();
                             log("msg=" + msg.what + "write data =" + Arrays.toString(carLifeMsg));
                             log("write data ok");
                         }
