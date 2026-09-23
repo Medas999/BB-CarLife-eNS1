@@ -3,7 +3,6 @@ package com.projection.car;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -13,10 +12,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
-import android.provider.Settings;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -82,10 +78,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             } else if (UsbManager.ACTION_USB_ACCESSORY_DETACHED.equals(action)) {
 
-                Intent stopintent = new Intent(mContext, ForgroundService.class);
-                stopintent.setAction("service_stop");
-                mContext.startService(stopintent);
-
                 if (mWakeLock.isHeld()) {
                     mWakeLock.release();
                 }
@@ -114,7 +106,6 @@ public class MainActivity extends AppCompatActivity {
         mContext = this;
 
         checkPermission();
-        checkAccessibilitySettingsOn(mContext, ForgroundService.class.getCanonicalName());
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, Utils.TAG);
@@ -186,7 +177,6 @@ public class MainActivity extends AppCompatActivity {
 
             mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
         }
-        mMsgProcess.startReadAudio();
     }
 
 
@@ -225,9 +215,6 @@ public class MainActivity extends AppCompatActivity {
                 mWakeLock.acquire();//保持屏幕唤醒
 
 
-                Intent intent = new Intent(this, ForgroundService.class);
-                intent.setAction("service_start");
-                startService(intent);
             }
 
             log("accessory opened");
@@ -278,63 +265,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    private boolean checkAccessibilitySettingsOn(Context mContext, String serviceName) {
-        int accessibilityEnabled = 0;
-        // 对应的服务
-        final String service = getPackageName() + "/" + serviceName;
-        try {
-            accessibilityEnabled = Settings.Secure.getInt(mContext.getApplicationContext().getContentResolver(),
-                    android.provider.Settings.Secure.ACCESSIBILITY_ENABLED);
-            log("accessibilityEnabled = " + accessibilityEnabled);
-        } catch (Settings.SettingNotFoundException e) {
-            log("Error finding setting, default accessibility to not found: " + e.getMessage());
-        }
-
-        TextUtils.SimpleStringSplitter mStringColonSplitter = new TextUtils.SimpleStringSplitter(':');
-
-        if (accessibilityEnabled == 1) {
-            log("***ACCESSIBILITY IS ENABLED*** -----------------");
-
-            String settingValue = Settings.Secure.getString(mContext.getApplicationContext().getContentResolver(),
-                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            if (settingValue != null) {
-                mStringColonSplitter.setString(settingValue);
-                while (mStringColonSplitter.hasNext()) {
-                    String accessibilityService = mStringColonSplitter.next();
-                    log("-------------- > accessibilityService :: " + accessibilityService + " " + service);
-                    if (accessibilityService.equalsIgnoreCase(service)) {
-                        log("We've found the correct setting - accessibility is switched on!");
-                        return true;
-                    }
-                }
-            }
-        } else {
-            log("***ACCESSIBILITY IS DISABLED***");
-        }
-        //跳转设置打开无障碍
-        AlertDialog.Builder builder = new AlertDialog.Builder(mContext);
-        builder.setTitle("权限申请");
-        builder.setMessage("应用需要开启辅助功能,如果取消部分功能不可用");
-        builder.setPositiveButton("确定开启", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                startActivity(intent);
-            }
-        });
-        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-
-            }
-        });
-
-        builder.setCancelable(false);
-        builder.show();
-
-        return false;
-    }
 
     private void checkPermission() {
         if (Build.VERSION.SDK_INT < 21) {
