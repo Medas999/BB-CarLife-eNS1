@@ -46,7 +46,7 @@ public class MediaCodecTool {
     }
 
     private void createVirtualDisplay() {
-        log("VIS w =  + mWidth + ", h = " + mHeight);
+        log("VIS w = " + mWidth + ", h = " + mHeight);
         try {
             mMediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             MediaFormat mediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, mWidth, mHeight);
