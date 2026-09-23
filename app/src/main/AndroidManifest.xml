@@ -3,7 +3,6 @@
     <!--android:sharedUserId="android.uid.system"-->
     <uses-feature android:name="android.hardware.usb.accessory" />
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!--<uses-permission-->
     <!--android:name="android.permission.CHANGE_CONFIGURATION"-->
@@ -15,22 +14,8 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
-        android:allowAudioPlaybackCapture="true"
         android:theme="@style/AppTheme">
 
-        <service
-            android:name="com.projection.car.ForgroundService"
-            android:label="车机投屏辅助功能"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility" />
-        </service>
 
         <activity
             android:name="com.projection.car.MainActivity"
