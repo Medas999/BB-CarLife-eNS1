@@ -106,9 +106,9 @@ public class MainActivity extends AppCompatActivity {
 
             } else if (UsbManager.ACTION_USB_ACCESSORY_ATTACHED.equals(action)) {
                 UsbAccessory accessory = (UsbAccessory) intent.getParcelableExtra(UsbManager.EXTRA_ACCESSORY);
-                openAccessory(mUsbAccessory);
-                //检测到us连接
+                mUsbAccessory = accessory;
                 log("USB_ACCESSORY_ATTACHED " + accessory);
+                openAccessory(accessory);
             }
         }
     };
@@ -237,7 +237,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void openAccessory(UsbAccessory accessory) {
         log("openAccessory");
-        mFileDescriptor = mUsbManager.openAccessory(accessory);
+        if (accessory == null) {
+            log("openAccessory skipped: accessory is null");
+            return;
+        }
+        try {
+            mFileDescriptor = mUsbManager.openAccessory(accessory);
+        } catch (SecurityException e) {
+            log("openAccessory permission error: " + e.getMessage());
+            return;
+        }
 
         if (mFileDescriptor != null) {
             FileDescriptor fd = mFileDescriptor.getFileDescriptor();
@@ -283,7 +292,8 @@ public class MainActivity extends AppCompatActivity {
                 openAccessory(mUsbAccessory);
             } else {
                 log("accessories null per");
-                PendingIntent mPermissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION), 0);
+                int pendingFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0;
+                PendingIntent mPermissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION), pendingFlags);
                 mUsbManager.requestPermission(accessory, mPermissionIntent);
             }
         } else {
