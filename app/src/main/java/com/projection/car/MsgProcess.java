@@ -79,6 +79,7 @@ import static com.projection.car.Utils.log;
 public class MsgProcess {
 
     private volatile boolean usbOk;
+    private volatile boolean mirrorRequested;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
     private Activity mContext;
@@ -152,8 +153,27 @@ public class MsgProcess {
 
     }
 
-    public void mediaPermissionOk(Activity activity, int paramInt2, Intent paramIntent) {
-        mMediaCodecTool.onActivityResult(activity, paramInt2, paramIntent);
+    public void requestMirrorPermission() {
+        if (mirrorRequested) {
+            mInfoListener.onProtocolEvent("Mirror permission already requested");
+            return;
+        }
+        mirrorRequested = true;
+        mMainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE,
+                        mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
+            }
+        });
+    }
+
+    public boolean mediaPermissionOk(Activity activity, int paramInt2, Intent paramIntent) {
+        boolean ok = mMediaCodecTool.onActivityResult(activity, paramInt2, paramIntent);
+        if (!ok) {
+            mirrorRequested = false;
+        }
+        return ok;
     }
 
     public synchronized void resetUsb() {
@@ -489,8 +509,12 @@ public class MsgProcess {
                             log("msg=MSG_MEDIA_INIT" + "write data =" + Arrays.toString(carLifeMsg));
                             log("write data ok  audiohandler start");
 
-                            //mAudioReadHandler.sendEmptyMessage(AudioHandler.AUDIO_START);
-                            mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
+                            if (!mMediaCodecTool.isProjectionActive()) {
+                                mInfoListener.onProtocolEvent("HU requested video; mirror not active yet");
+                                requestMirrorPermission();
+                            } else {
+                                mInfoListener.onProtocolEvent("HU video start -> mirror already streaming");
+                            }
                         }
                         break;
                         case MSG_WRITE_AUDIO:
