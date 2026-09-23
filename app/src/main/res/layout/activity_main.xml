@@ -56,7 +56,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="50dp"
-            android:text="视频帧率：" />
+            android:text="FPS:" />
 
         <EditText
             android:id="@+id/bit"
@@ -66,7 +66,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="50dp"
-            android:text="视频比特率：" />
+            android:text="Bitrate:" />
 
         <EditText
             android:id="@+id/frame"
@@ -77,7 +77,7 @@
             android:id="@+id/config"
             android:layout_width="60dp"
             android:layout_height="50dp"
-            android:text="设置" />
+            android:text="Apply" />
 
     </LinearLayout>
 
@@ -92,20 +92,23 @@
             android:id="@+id/set_plugin1"
             android:layout_width="60dp"
             android:layout_height="50dp"
-            android:text="插件1" />
+            android:text="插件1"
+            android:visibility="gone" />
 
         <Button
             android:layout_marginLeft="30dp"
             android:id="@+id/set_plugin2"
             android:layout_width="60dp"
             android:layout_height="50dp"
-            android:text="插件2" />
+            android:text="插件2"
+            android:visibility="gone" />
         <Button
             android:layout_marginLeft="30dp"
             android:id="@+id/delete_plugin"
             android:layout_width="60dp"
             android:layout_height="50dp"
-            android:text="删除" />
+            android:text="删除"
+            android:visibility="gone" />
 
     </LinearLayout>
 </LinearLayout>
