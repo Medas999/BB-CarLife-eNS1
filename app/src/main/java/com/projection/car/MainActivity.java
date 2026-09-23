@@ -204,6 +204,11 @@ public class MainActivity extends AppCompatActivity {
                 serialTxt.setText("HU id: " + id);
                 uiLog("Head unit id: " + id);
             }
+
+            @Override
+            public void onProtocolEvent(final String event) {
+                uiLog(event);
+            }
         });
 
 
