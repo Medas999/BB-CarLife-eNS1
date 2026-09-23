@@ -24,15 +24,9 @@ import android.widget.TextView;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
 
 import static com.projection.car.Utils.REQUEST_CODE;
-import static com.projection.car.Utils.getRootAhth;
 import static com.projection.car.Utils.log;
-import static com.projection.car.Utils.logAll;
-import static com.projection.car.Utils.pauseSong;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -120,46 +114,7 @@ public class MainActivity extends AppCompatActivity {
         mContext = this;
 
         checkPermission();
-        if(!getRootAhth()){
-            checkAccessibilitySettingsOn(mContext, ForgroundService.class.getCanonicalName());
-        }
-
-        findViewById(R.id.set_plugin1).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    InputStream inputStream = getAssets().open("app-debug.apk");
-                    byte [] readb = new byte[1024];
-                    String p = "/sdcard/plugin.apk";
-                    FileOutputStream fileOutputStream = new FileOutputStream(p);
-                    int len = 0;
-                    while ((len = inputStream.read(readb)) > 0){
-                        fileOutputStream.write(readb,0,len);
-                    }
-                    if(Utils.installPlugin(p)){
-                        log("install ok");
-                    }
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-
-
-        findViewById(R.id.set_plugin2).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-            }
-        });
-
-        findViewById(R.id.delete_plugin).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Utils.deletPlugin();
-            }
-        });
+        checkAccessibilitySettingsOn(mContext, ForgroundService.class.getCanonicalName());
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, Utils.TAG);
@@ -186,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
                 String frame = frameTxt.getText().toString();
                 sharedPreferences.edit().putInt("bit", Integer.parseInt(bit)).commit();
                 sharedPreferences.edit().putInt("frame", Integer.parseInt(frame)).commit();
-                Utils.installPlugin("");
+                uiLog("Video settings saved");
 
 
             }
@@ -223,7 +178,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         checkUSBDevice();
-        logAll();
 
     }
 
