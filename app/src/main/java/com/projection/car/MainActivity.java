@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("BB-CarLife-eNS1 ready");
+        uiLog("BB-CarLife-eNS1 v" + BuildConfig.VERSION_NAME + " ready");
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
