@@ -4,24 +4,13 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.ApplicationInfo;
 import android.graphics.Path;
-import android.media.AudioAttributes;
-import android.media.AudioFormat;
-import android.media.AudioPlaybackCaptureConfiguration;
-import android.media.AudioRecord;
-import android.media.MediaRecorder;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.os.Message;
-import android.os.SystemClock;
 import androidx.annotation.NonNull;
 import android.util.DisplayMetrics;
-import android.view.Surface;
 import android.view.WindowManager;
-import android.widget.Toast;
 
 import com.baidu.carlife.protobuf.CarlifeCarHardKeyCodeProto;
 import com.baidu.carlife.protobuf.CarlifeMusicInitProto;
@@ -35,7 +24,6 @@ import com.example.car.CarlifeVideoEncoderInfoProto;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,23 +114,6 @@ public class MsgProcess {
         startUsbTransferThread();
 
     }
-
-    private Runnable runnable = new Runnable() {
-        @Override
-        public void run() {
-
-            mInputStream = null;
-            mOutputStream = null;
-        }
-    };
-
-    private Runnable runnable_toast = new Runnable() {
-        @Override
-        public void run() {
-
-            Toast.makeText(mContext, "当前版本未授权,稍后自动断连", Toast.LENGTH_LONG).show();
-        }
-    };
 
     public void startProjection(FileInputStream in, FileOutputStream out) {
         log("startProjection");
@@ -532,14 +503,6 @@ public class MsgProcess {
                 }
             }
         };
-    }
-
-    public boolean isSystemApp(Context context) {
-        return ((context.getApplicationInfo().flags & ApplicationInfo.FLAG_SYSTEM) != 0);
-    }
-
-    public boolean isSystemUpdateApp(Context context) {
-        return ((context.getApplicationInfo().flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
     }
 
     public interface InfoListener {
