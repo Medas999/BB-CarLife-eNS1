@@ -464,6 +464,7 @@ public class MsgProcess {
                                     if (msg_type == CMD) {
                                         switch (type) {
                                             case MSG_CMD_HU_PROTOCOL_VERSION: {
+                                                mInfoListener.onProtocolEvent("HU protocol version received");
                                                 CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder = CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
                                                 builder.setMatchStatus(1);
                                                 byte[] result = builder.build().toByteArray();
@@ -475,6 +476,7 @@ public class MsgProcess {
                                                 try {
                                                     final CarlifeDeviceInfoProto.CarlifeDeviceInfo deviceInfo = CarlifeDeviceInfoProto.CarlifeDeviceInfo.parseFrom(msgdata);
                                                     log("os =" + deviceInfo.getOs() + ", cid =" + deviceInfo.getCid() + ", serial =" + deviceInfo.getSerial());
+                                                    mInfoListener.onProtocolEvent("HU info: os=" + deviceInfo.getOs() + ", cid=" + deviceInfo.getCid() + ", serial=" + deviceInfo.getSerial());
 
 
                                                 } catch (InvalidProtocolBufferException e) {
@@ -497,6 +499,7 @@ public class MsgProcess {
                                                 try {
                                                     CarlifeVideoEncoderInfoProto.CarlifeVideoEncoderInfo encoderInfo = CarlifeVideoEncoderInfoProto.CarlifeVideoEncoderInfo.parseFrom(msgdata);
                                                     log("encoderInfo = " + encoderInfo.getWidth() + ", " + encoderInfo.getHeight() + ", " + encoderInfo.getFrameRate());
+                                                    mInfoListener.onProtocolEvent("Video init: " + encoderInfo.getWidth() + "x" + encoderInfo.getHeight() + " @" + encoderInfo.getFrameRate());
                                                     if (encoderInfo.getWidth() > 10 && encoderInfo.getHeight() > 10) {
                                                         mVISWidth = encoderInfo.getWidth();
                                                         mVISHeight = encoderInfo.getHeight();
@@ -518,6 +521,7 @@ public class MsgProcess {
                                             }
                                             break;
                                             case MSG_CMD_VIDEO_ENCODER_START: {
+                                                mInfoListener.onProtocolEvent("HU requested video start");
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
@@ -526,6 +530,7 @@ public class MsgProcess {
                                                 try {
                                                     final CarlifeStatisticsInfoProto.CarlifeStatisticsInfo statisticsInfo = CarlifeStatisticsInfoProto.CarlifeStatisticsInfo.parseFrom(msgdata);
                                                     log("getCuid = " + statisticsInfo.getCuid() + "" + statisticsInfo.getVersionName() + statisticsInfo.getConnectTime() + statisticsInfo.getCrashLog());
+                                                    mInfoListener.onProtocolEvent("Auth/statistics received: " + statisticsInfo.getVersionName());
                                                     mMainHandler.post(new Runnable() {
                                                         @Override
                                                         public void run() {
@@ -698,6 +703,8 @@ public class MsgProcess {
         void onVISSize(int x, int y);
 
         void onVISID(String id);
+
+        void onProtocolEvent(String event);
     }
 
     static class CarMsg {
