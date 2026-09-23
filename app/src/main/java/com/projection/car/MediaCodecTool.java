@@ -16,7 +16,7 @@ import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjection.Callback;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.util.Log;
 
 import java.io.FileNotFoundException;
