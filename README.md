@@ -7,3 +7,7 @@ Based on the open-source CarProjection project by aa112901. This repository is f
 ## First milestone
 
 Phone → USB → Honda e:NS1 CarLife: establish session, send video, receive touch, and capture diagnostic logs.
+
+## CI build
+
+GitHub Actions builds a debug APK from the current `main` branch.
