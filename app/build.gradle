@@ -8,11 +8,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.bluebird.carlife.ens1.mirror03"
+        applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 31
-        versionName "0.3.1-mirror"
+        versionCode 40
+        versionName "0.4-mirror-lite"
     }
 
     buildTypes {
