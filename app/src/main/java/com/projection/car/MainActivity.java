@@ -166,6 +166,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
+        uiLog("BB-CarLife-eNS1 ready");
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
@@ -193,13 +194,15 @@ public class MainActivity extends AppCompatActivity {
         mMsgProcess = new MsgProcess(this, mVideoBit, mVideoFrame, new MsgProcess.InfoListener() {
             @Override
             public void onVISSize(int x, int y) {
-                wTxt.setText("车机屏幕宽度" + x);
-                hTxt.setText("车机屏幕高度" + y);
+                wTxt.setText("HU width: " + x);
+                hTxt.setText("HU height: " + y);
+                uiLog("Head unit video size: " + x + " x " + y);
             }
 
             @Override
             public void onVISID(String id) {
-                serialTxt.setText("车机id :" + id);
+                serialTxt.setText("HU id: " + id);
+                uiLog("Head unit id: " + id);
             }
         });
 
@@ -237,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void openAccessory(UsbAccessory accessory) {
         log("openAccessory");
+        uiLog("Opening CarLife USB accessory...");
         if (accessory == null) {
             log("openAccessory skipped: accessory is null");
             return;
@@ -257,6 +261,7 @@ public class MainActivity extends AppCompatActivity {
                 FileOutputStream mOutputStream = new FileOutputStream(fd);
 
                 mMsgProcess.startProjection(mInputStream, mOutputStream);
+                uiLog("USB opened. CarLife session started.");
 
                 mWakeLock.acquire();//保持屏幕唤醒
 
@@ -269,7 +274,19 @@ public class MainActivity extends AppCompatActivity {
             log("accessory opened");
         } else {
             log("accessory open fail");
+            uiLog("USB open failed.");
         }
+    }
+
+    private void uiLog(final String text) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mLog != null) {
+                    mLog.append(text + "\n");
+                }
+            }
+        });
     }
 
     private void checkUSBDevice() {
@@ -278,6 +295,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (accessories == null) {
             log("accessories list is null");
+            uiLog("Waiting for Honda CarLife USB...");
             return;
         }
 
