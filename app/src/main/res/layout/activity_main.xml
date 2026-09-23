@@ -9,7 +9,7 @@
     <ScrollView
         android:id="@+id/log_container"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="220dp"
         android:background="#E0E0E0"
         android:clipToPadding="false"
         android:padding="8dp">
