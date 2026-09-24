@@ -124,8 +124,10 @@ public class MsgProcess {
         log("startProjection");
         usbOk = true;
         huVideoStarted = false;
+        mirrorRequested = false;
         mInputStream = in;
         mOutputStream = out;
+        mInfoListener.onProtocolEvent("USB read loop starting");
         mUsbReadHandler.sendEmptyMessage(0);
 
     }
@@ -257,6 +259,7 @@ public class MsgProcess {
                                     int msg_type = data[3];
                                     log("msg_type = " + msg_type + ", read data = " + Arrays.toString(data));
                                     int msgLen = bytesToInt2(data, 4);
+                                    mInfoListener.onProtocolEvent(String.format("USB RX outer type=%d len=%d", msg_type, msgLen));
                                     log("msgLen = " + msgLen);
                                     byte[] msgdata = new byte[msgLen];
                                     len = readFully(mInputStream, msgdata, msgdata.length);
@@ -429,7 +432,8 @@ public class MsgProcess {
 
                             } catch (Exception e) {
                                 e.printStackTrace();
-
+                                mInfoListener.onProtocolEvent("USB read error: " + e.getClass().getSimpleName() +
+                                        (e.getMessage() == null ? "" : " - " + e.getMessage()));
                                 resetUsb();
                                 break;
                             }
