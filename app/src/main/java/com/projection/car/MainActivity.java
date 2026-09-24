@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v0.5 Honda-v2 ready");
+        uiLog("eNS1 Mirror Test v0.6 handshake-first ready");
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
@@ -234,12 +234,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mMsgProcess.startProjection(mInputStream, mOutputStream);
                 uiLog("USB opened. CarLife session started.");
-                if (!mirrorPermissionRequested) {
-                    mirrorPermissionRequested = true;
-                    uiLog("Requesting screen capture permission...");
-                    requestMirror();
-                }
-
+                uiLog("Handshake first: do not start mirror yet.");
                 mWakeLock.acquire();//保持屏幕唤醒
 
 
