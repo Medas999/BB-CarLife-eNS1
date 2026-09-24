@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v0.4 ready");
+        uiLog("eNS1 Mirror Test v0.5 Honda-v2 ready");
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
@@ -188,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(paramInt1, paramInt2, paramIntent);
         if (paramInt1 == REQUEST_CODE) {
             boolean ok = mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
-            uiLog(ok ? "Screen capture active -> sending H.264 to CarLife video channel"
+            uiLog(ok ? "Screen capture active; waiting for HU VIDEO_START"
                     : "Screen capture cancelled/failed");
         }
     }
