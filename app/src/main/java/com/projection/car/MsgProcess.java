@@ -14,6 +14,7 @@ import android.view.WindowManager;
 
 import com.baidu.carlife.protobuf.CarlifeCarHardKeyCodeProto;
 import com.baidu.carlife.protobuf.CarlifeMusicInitProto;
+import com.baidu.carlife.protobuf.CarlifeSubscribeMobileCarLifeInfoListProto;
 import com.baidu.carlife.protobuf.CarlifeTouchActionProto;
 import com.example.car.CarlifeAuthenResultProto;
 import com.example.car.CarlifeDeviceInfoProto;
@@ -38,6 +39,8 @@ import static com.projection.car.Utils.KEYCODE_SEEK_ADD;
 import static com.projection.car.Utils.KEYCODE_SEEK_SUB;
 import static com.projection.car.Utils.MEDIA;
 import static com.projection.car.Utils.MSG_CMD_FOREGROUND;
+import static com.projection.car.Utils.MSG_CMD_CARLIFE_DATA_SUBSCRIBE;
+import static com.projection.car.Utils.MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE;
 import static com.projection.car.Utils.MSG_CMD_HU_INFO;
 import static com.projection.car.Utils.MSG_CMD_HU_PROTOCOL_VERSION;
 import static com.projection.car.Utils.MSG_CMD_MD_AUTHEN_RESULT;
@@ -68,6 +71,8 @@ public class MsgProcess {
 
     private volatile boolean usbOk;
     private volatile boolean mirrorRequested;
+    private volatile boolean huVideoStarted;
+    private volatile int huProtocolMajor = 1;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
     private Activity mContext;
@@ -118,6 +123,7 @@ public class MsgProcess {
     public void startProjection(FileInputStream in, FileOutputStream out) {
         log("startProjection");
         usbOk = true;
+        huVideoStarted = false;
         mInputStream = in;
         mOutputStream = out;
         mUsbReadHandler.sendEmptyMessage(0);
@@ -151,6 +157,7 @@ public class MsgProcess {
         if (usbOk) {
             log("resetUsb");
             usbOk = false;
+            huVideoStarted = false;
             mMediaCodecTool.stopProjection();
             mUsbWriteHandler.removeCallbacksAndMessages(null);
         }
@@ -161,6 +168,9 @@ public class MsgProcess {
     private MediaCodecTool.VideoDataEncodeListener videoDataEncodeListener = new MediaCodecTool.VideoDataEncodeListener() {
         @Override
         public void onData(byte[] data) {
+            if (!usbOk || !huVideoStarted) {
+                return;
+            }
             try {
 //                                        log("data len = " + data.length);
                 byte[] carLifeMsg = exportVideoMsg(MSG_VIDEO_DATA, data);
@@ -264,6 +274,7 @@ public class MsgProcess {
                                                 try {
                                                     CarlifeProtocolVersionProto.CarlifeProtocolVersion version =
                                                             CarlifeProtocolVersionProto.CarlifeProtocolVersion.parseFrom(msgdata);
+                                                    huProtocolMajor = version.getMajorVersion();
                                                     mInfoListener.onProtocolEvent("HU protocol v" + version.getMajorVersion() + "." + version.getMinorVersion());
                                                 } catch (Exception e) {
                                                     mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length + " bytes)");
@@ -271,9 +282,10 @@ public class MsgProcess {
                                                 CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
                                                         CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
                                                 builder.setMatchStatus(1);
+                                                builder.setCarlifeProtocolVersion(huProtocolMajor);
                                                 byte[] result = builder.build().toByteArray();
-                                                log("protocol match=1 " + Arrays.toString(result));
-                                                mInfoListener.onProtocolEvent("TX protocol match=1");
+                                                log("protocol match=1 version=" + huProtocolMajor + " " + Arrays.toString(result));
+                                                mInfoListener.onProtocolEvent("TX protocol match=1 v" + huProtocolMajor);
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS,
                                                         exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result)).sendToTarget();
                                             }
@@ -301,6 +313,21 @@ public class MsgProcess {
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_MD_INFO, exportCMDMsg(MSG_CMD_MD_INFO, builder.build().toByteArray())).sendToTarget();
                                             }
                                             break;
+                                            case MSG_CMD_CARLIFE_DATA_SUBSCRIBE: {
+                                                try {
+                                                    CarlifeSubscribeMobileCarLifeInfoListProto.CarlifeSubscribeMobileCarLifeInfoList subscribeList =
+                                                            CarlifeSubscribeMobileCarLifeInfoListProto.CarlifeSubscribeMobileCarLifeInfoList.parseFrom(msgdata);
+                                                    mInfoListener.onProtocolEvent("HU data subscribe: cnt=" + subscribeList.getCnt());
+                                                } catch (Exception e) {
+                                                    mInfoListener.onProtocolEvent("HU data subscribe: " + msgdata.length + " bytes");
+                                                }
+                                                // The HU request and MD acknowledgement use the same protobuf list.
+                                                // Echoing the requested list means we acknowledge exactly the modules the Honda asked for.
+                                                mUsbWriteHandler.obtainMessage(MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE,
+                                                        exportCMDMsg(MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE, msgdata)).sendToTarget();
+                                                mInfoListener.onProtocolEvent("TX data subscribe done");
+                                            }
+                                            break;
                                             case MSG_CMD_VIDEO_ENCODER_INIT: {
                                                 try {
                                                     CarlifeVideoEncoderInfoProto.CarlifeVideoEncoderInfo encoderInfo = CarlifeVideoEncoderInfoProto.CarlifeVideoEncoderInfo.parseFrom(msgdata);
@@ -321,13 +348,17 @@ public class MsgProcess {
                                                 builder.setFrameRate(mVideoBit);
                                                 builder.setWidth((int) mVISWidth);
                                                 builder.setHeight((int) mVISHeight);
-                                                mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_INIT_DONE, exportCMDMsg(MSG_CMD_VIDEO_ENCODER_INIT_DONE, msgdata)).sendToTarget();
+                                                byte[] videoInitDone = builder.build().toByteArray();
+                                                mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_INIT_DONE,
+                                                        exportCMDMsg(MSG_CMD_VIDEO_ENCODER_INIT_DONE, videoInitDone)).sendToTarget();
+                                                mInfoListener.onProtocolEvent("TX video init done: " + (int) mVISWidth + "x" + (int) mVISHeight + " @" + mVideoBit);
 
 
                                             }
                                             break;
                                             case MSG_CMD_VIDEO_ENCODER_START: {
-                                                mInfoListener.onProtocolEvent("HU requested video start");
+                                                huVideoStarted = true;
+                                                mInfoListener.onProtocolEvent("HU requested video start -> H.264 enabled");
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
@@ -420,6 +451,7 @@ public class MsgProcess {
                 try {
                     switch (msg.what) {
                         case MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS:
+                        case MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE:
                         case MSG_CMD_MD_INFO:
                         case MSG_CMD_MD_AUTHEN_RESULT: {
                             byte[] carLifeMsg = (byte[]) msg.obj;
@@ -457,6 +489,7 @@ public class MsgProcess {
                                 log("msg=" + MSG_CMD_FOREGROUND + "write data =" + Arrays.toString(headmsg));
                                 mOutputStream.write(carLifeMsg);
                                 log("msg=" + MSG_CMD_FOREGROUND + "write data =" + Arrays.toString(carLifeMsg));
+                                mOutputStream.flush();
                                 log("write data ok");
                             }
 
