@@ -73,6 +73,7 @@ public class MsgProcess {
     private volatile boolean mirrorRequested;
     private volatile boolean huVideoStarted;
     private volatile int huProtocolMajor = 1;
+    private volatile int protocolProbeAttempt;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
     private Activity mContext;
@@ -125,6 +126,7 @@ public class MsgProcess {
         usbOk = true;
         huVideoStarted = false;
         mirrorRequested = false;
+        protocolProbeAttempt = 0;
         mInputStream = in;
         mOutputStream = out;
         mInfoListener.onProtocolEvent("USB read loop starting");
@@ -274,21 +276,49 @@ public class MsgProcess {
                                     if (msg_type == CMD) {
                                         switch (type) {
                                             case MSG_CMD_HU_PROTOCOL_VERSION: {
+                                                int huMinor = 0;
                                                 try {
                                                     CarlifeProtocolVersionProto.CarlifeProtocolVersion version =
                                                             CarlifeProtocolVersionProto.CarlifeProtocolVersion.parseFrom(msgdata);
                                                     huProtocolMajor = version.getMajorVersion();
-                                                    mInfoListener.onProtocolEvent("HU protocol v" + version.getMajorVersion() + "." + version.getMinorVersion());
+                                                    huMinor = version.getMinorVersion();
+                                                    mInfoListener.onProtocolEvent("HU protocol v" + huProtocolMajor + "." + huMinor);
                                                 } catch (Exception e) {
                                                     mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length + " bytes)");
                                                 }
-                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                builder.setMatchStatus(1);
-                                                builder.setCarlifeProtocolVersion(huProtocolMajor);
-                                                byte[] result = builder.build().toByteArray();
-                                                log("protocol match=1 version=" + huProtocolMajor + " " + Arrays.toString(result));
-                                                mInfoListener.onProtocolEvent("TX protocol match=1 v" + huProtocolMajor);
+
+                                                protocolProbeAttempt++;
+                                                int probe = ((protocolProbeAttempt - 1) % 3) + 1;
+                                                byte[] result;
+                                                String probeName;
+
+                                                if (probe == 1) {
+                                                    // Legacy Baidu phone implementation: only matchStatus=1.
+                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                    builder.setMatchStatus(1);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "A legacy-status";
+                                                } else if (probe == 2) {
+                                                    // Newer v2 schema: matchStatus + optional carlifeProtocolVersion.
+                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                    builder.setMatchStatus(1);
+                                                    builder.setCarlifeProtocolVersion(huProtocolMajor);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "B status+version";
+                                                } else {
+                                                    // Some CarLife v2-era implementations use the protocol-version payload on service 0x10002.
+                                                    CarlifeProtocolVersionProto.CarlifeProtocolVersion.Builder builder =
+                                                            CarlifeProtocolVersionProto.CarlifeProtocolVersion.newBuilder();
+                                                    builder.setMajorVersion(huProtocolMajor);
+                                                    builder.setMinorVersion(huMinor);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "C version-message";
+                                                }
+
+                                                log("protocol probe " + probeName + " " + Arrays.toString(result));
+                                                mInfoListener.onProtocolEvent("TX VERSION_MATCH " + probeName + " len=" + result.length);
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS,
                                                         exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result)).sendToTarget();
                                             }
@@ -463,10 +493,12 @@ public class MsgProcess {
                             headmsg[3] = CMD;
                             intToBytes2(carLifeMsg.length, headmsg, 4);//carlifemsg len
                             mOutputStream.write(headmsg);
+                            mOutputStream.flush();
                             log("msg=" + msg.what + "write data =" + Arrays.toString(headmsg));
                             mOutputStream.write(carLifeMsg);
                             mOutputStream.flush();
                             log("msg=" + msg.what + "write data =" + Arrays.toString(carLifeMsg));
+                            mInfoListener.onProtocolEvent(String.format("USB TX CMD 0x%08X innerLen=%d", msg.what, carLifeMsg.length));
                             log("write data ok");
                         }
                         break;
@@ -478,6 +510,7 @@ public class MsgProcess {
                                 headmsg[3] = CMD;
                                 intToBytes2(carLifeMsg.length, headmsg, 4);//carlifemsg len
                                 mOutputStream.write(headmsg);
+                                mOutputStream.flush();
                                 log("msg=" + msg.what + "write data =" + Arrays.toString(headmsg));
                                 mOutputStream.write(carLifeMsg);
                                 log("msg=" + msg.what + "write data =" + Arrays.toString(carLifeMsg));
@@ -490,6 +523,7 @@ public class MsgProcess {
                                 headmsg[3] = CMD;
                                 intToBytes2(carLifeMsg.length, headmsg, 4);//carlifemsg len
                                 mOutputStream.write(headmsg);
+                                mOutputStream.flush();
                                 log("msg=" + MSG_CMD_FOREGROUND + "write data =" + Arrays.toString(headmsg));
                                 mOutputStream.write(carLifeMsg);
                                 log("msg=" + MSG_CMD_FOREGROUND + "write data =" + Arrays.toString(carLifeMsg));
