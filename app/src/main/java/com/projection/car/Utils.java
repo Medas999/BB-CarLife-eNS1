@@ -28,6 +28,7 @@ public class Utils {
     public static final int MSG_CMD_VIDEO_ENCODER_INIT = 0x00018007;//98311
     public static final int MSG_CMD_VIDEO_ENCODER_START = 0x00018009;//98313
     public static final int MSG_CMD_STATISTIC_INFO = 0x00018027;//98343
+    public static final int MSG_CMD_CARLIFE_DATA_SUBSCRIBE = 0x00018043;
 
 
     public static final int MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS = 0x00010002;//65538
@@ -36,6 +37,7 @@ public class Utils {
     public static final int MSG_CMD_VIDEO_ENCODER_INIT_DONE = 0x00010008;//65544
     public static final int MSG_CMD_MD_AUTHEN_RESULT = 0x0001004B;//65611
     public static final int MSG_CMD_FOREGROUND = 0x0001001B;//65563
+    public static final int MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE = 0x00010044;
 
 
     public static final int MSG_CMD_MD_FEATURE_CONFIG_REQUEST = 0x00010051;//65617
