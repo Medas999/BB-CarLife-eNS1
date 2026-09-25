@@ -268,8 +268,12 @@ public class MsgProcess {
                                     log("read data = " + Arrays.toString(msgdata));
                                     log("read msg data = " + len + " msgLen " + msgLen);
                                     short carmsgLen = bytesToShort2(msgdata, 0);
+                                    int innerReserved = bytesToShort2(msgdata, 2) & 0xFFFF;
                                     int type = bytesToInt2(msgdata, 4);
-                                    log("read carmsgLen data = " + carmsgLen + " type " + type);
+                                    log("read carmsgLen data = " + carmsgLen + " reserved " + innerReserved + " type " + type);
+                                    if (msg_type == CMD) {
+                                        mInfoListener.onProtocolEvent(String.format("RX CMD 0x%08X reserved=%d payload=%d", type, innerReserved, carmsgLen & 0xFFFF));
+                                    }
                                     byte[] carmsg = new byte[carmsgLen];
                                     System.arraycopy(msgdata, 8, carmsg, 0, carmsgLen);
                                     msgdata = carmsg;
@@ -282,45 +286,76 @@ public class MsgProcess {
                                                             CarlifeProtocolVersionProto.CarlifeProtocolVersion.parseFrom(msgdata);
                                                     huProtocolMajor = version.getMajorVersion();
                                                     huMinor = version.getMinorVersion();
-                                                    mInfoListener.onProtocolEvent("HU protocol v" + huProtocolMajor + "." + huMinor);
+                                                    mInfoListener.onProtocolEvent("HU protocol v" + huProtocolMajor + "." + huMinor +
+                                                            " rxReserved=" + innerReserved);
                                                 } catch (Exception e) {
-                                                    mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length + " bytes)");
+                                                    mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length +
+                                                            " bytes), rxReserved=" + innerReserved);
                                                 }
 
                                                 protocolProbeAttempt++;
-                                                int probe = ((protocolProbeAttempt - 1) % 3) + 1;
+                                                int probe = ((protocolProbeAttempt - 1) % 7) + 1;
                                                 byte[] result;
+                                                int txReserved;
+                                                boolean combinedWrite;
                                                 String probeName;
 
-                                                if (probe == 1) {
-                                                    // Legacy Baidu phone implementation: only matchStatus=1.
-                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                    builder.setMatchStatus(1);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "A legacy-status";
-                                                } else if (probe == 2) {
-                                                    // Newer v2 schema: matchStatus + optional carlifeProtocolVersion.
-                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                    builder.setMatchStatus(1);
-                                                    builder.setCarlifeProtocolVersion(huProtocolMajor);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "B status+version";
-                                                } else {
-                                                    // Some CarLife v2-era implementations use the protocol-version payload on service 0x10002.
-                                                    CarlifeProtocolVersionProto.CarlifeProtocolVersion.Builder builder =
-                                                            CarlifeProtocolVersionProto.CarlifeProtocolVersion.newBuilder();
-                                                    builder.setMajorVersion(huProtocolMajor);
-                                                    builder.setMinorVersion(huMinor);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "C version-message";
+                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder statusBuilder =
+                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                statusBuilder.setMatchStatus(1);
+
+                                                switch (probe) {
+                                                    case 1:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 0;
+                                                        combinedWrite = false;
+                                                        probeName = "A r0 split";
+                                                        break;
+                                                    case 2:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 2;
+                                                        combinedWrite = false;
+                                                        probeName = "B r2 split";
+                                                        break;
+                                                    case 3:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 1;
+                                                        combinedWrite = false;
+                                                        probeName = "C r1 split";
+                                                        break;
+                                                    case 4:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 2;
+                                                        combinedWrite = true;
+                                                        probeName = "D r2 combined";
+                                                        break;
+                                                    case 5:
+                                                        statusBuilder.setCarlifeProtocolVersion(huProtocolMajor);
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 2;
+                                                        combinedWrite = true;
+                                                        probeName = "E r2+version combined";
+                                                        break;
+                                                    case 6:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = 0;
+                                                        combinedWrite = true;
+                                                        probeName = "F r0 combined";
+                                                        break;
+                                                    default:
+                                                        result = statusBuilder.build().toByteArray();
+                                                        txReserved = innerReserved;
+                                                        combinedWrite = true;
+                                                        probeName = "G copy-r" + innerReserved + " combined";
+                                                        break;
                                                 }
 
-                                                log("protocol probe " + probeName + " " + Arrays.toString(result));
-                                                mInfoListener.onProtocolEvent("TX VERSION_MATCH " + probeName + " len=" + result.length);
-                                                mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS,
-                                                        exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result)).sendToTarget();
+                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, txReserved);
+                                                log("protocol probe " + probeName + " " + Arrays.toString(inner));
+                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " payload=" + result.length);
+                                                Message tx = mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, inner);
+                                                tx.arg1 = combinedWrite ? 1 : 0;
+                                                tx.sendToTarget();
                                             }
                                             break;
                                             case MSG_CMD_HU_INFO: {
@@ -492,13 +527,24 @@ public class MsgProcess {
                             byte[] headmsg = new byte[8];
                             headmsg[3] = CMD;
                             intToBytes2(carLifeMsg.length, headmsg, 4);//carlifemsg len
-                            mOutputStream.write(headmsg);
-                            mOutputStream.flush();
-                            log("msg=" + msg.what + "write data =" + Arrays.toString(headmsg));
-                            mOutputStream.write(carLifeMsg);
-                            mOutputStream.flush();
-                            log("msg=" + msg.what + "write data =" + Arrays.toString(carLifeMsg));
-                            mInfoListener.onProtocolEvent(String.format("USB TX CMD 0x%08X innerLen=%d", msg.what, carLifeMsg.length));
+                            if (msg.arg1 == 1) {
+                                byte[] packet = new byte[headmsg.length + carLifeMsg.length];
+                                System.arraycopy(headmsg, 0, packet, 0, headmsg.length);
+                                System.arraycopy(carLifeMsg, 0, packet, headmsg.length, carLifeMsg.length);
+                                mOutputStream.write(packet);
+                                mOutputStream.flush();
+                                log("msg=" + msg.what + " combined write =" + Arrays.toString(packet));
+                            } else {
+                                mOutputStream.write(headmsg);
+                                mOutputStream.flush();
+                                log("msg=" + msg.what + "write data =" + Arrays.toString(headmsg));
+                                mOutputStream.write(carLifeMsg);
+                                mOutputStream.flush();
+                                log("msg=" + msg.what + "write data =" + Arrays.toString(carLifeMsg));
+                            }
+                            int txReserved = bytesToShort2(carLifeMsg, 2) & 0xFFFF;
+                            mInfoListener.onProtocolEvent(String.format("USB TX CMD 0x%08X innerLen=%d reserved=%d mode=%s",
+                                    msg.what, carLifeMsg.length, txReserved, msg.arg1 == 1 ? "combined" : "split"));
                             log("write data ok");
                         }
                         break;
