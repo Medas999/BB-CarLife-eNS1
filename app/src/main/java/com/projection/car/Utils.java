@@ -120,18 +120,18 @@ public class Utils {
     public static final int KEYCODE_NUMBER_ADD = 0x00000031; // +
 
     public static byte[] exportCMDMsg(int service, byte[] result) {
-        byte[] carlife = null;
-        if (result == null) {
-            carlife = new byte[8];
-            shortToBytes((short) 0, carlife, 0);// data len
-            intToBytes2(service, carlife, 4);
-        } else {
-            carlife = new byte[8 + result.length];
-            shortToBytes((short) result.length, carlife, 0);// data len
-            intToBytes2(service, carlife, 4);
-            System.arraycopy(result, 0, carlife, 8, result.length);
-        }
+        return exportCMDMsg(service, result, 0);
+    }
 
+    public static byte[] exportCMDMsg(int service, byte[] result, int reserved) {
+        int dataLen = result == null ? 0 : result.length;
+        byte[] carlife = new byte[8 + dataLen];
+        shortToBytes((short) dataLen, carlife, 0);// data len
+        shortToBytes((short) reserved, carlife, 2);// reserved / message type
+        intToBytes2(service, carlife, 4);
+        if (dataLen > 0) {
+            System.arraycopy(result, 0, carlife, 8, dataLen);
+        }
         return carlife;
     }
 
