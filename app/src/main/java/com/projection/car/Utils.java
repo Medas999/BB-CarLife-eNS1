@@ -7,6 +7,16 @@ public class Utils {
 
     public final static String TAG = "CarProjection";
 
+    public interface LogSink {
+        void onLog(String line);
+    }
+
+    private static volatile LogSink sLogSink;
+
+    public static void setLogSink(LogSink sink) {
+        sLogSink = sink;
+    }
+
     public static final int REQUEST_CODE = 100;
 
     public static final byte CMD = 1;
@@ -224,6 +234,13 @@ public class Utils {
 
     public static void log(String str) {
         Log.e(TAG, str);
+        LogSink sink = sLogSink;
+        if (sink != null) {
+            try {
+                sink.onLog(str);
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
 }
