@@ -7,6 +7,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
 import android.os.Build;
@@ -15,14 +16,22 @@ import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 import static com.projection.car.Utils.REQUEST_CODE;
 import static com.projection.car.Utils.log;
@@ -52,7 +61,14 @@ public class MainActivity extends AppCompatActivity {
     private EditText bitTxt, frameTxt;
     private TextView wTxt, hTxt, serialTxt;
     private Button mirrorBtn;
+    private Button shareLogBtn;
     private boolean mirrorPermissionRequested;
+
+    private final Object logFileLock = new Object();
+    private BufferedWriter sessionLogWriter;
+    private File sessionLogFile;
+    private final SimpleDateFormat logTimeFormat =
+            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
 
 
     private BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
@@ -110,6 +126,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         mContext = this;
 
+        startSessionLog();
+        Utils.setLogSink(new Utils.LogSink() {
+            @Override
+            public void onLog(String line) {
+                appendSessionLog("RAW", line);
+            }
+        });
+
         checkPermission();
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -117,13 +141,21 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v0.8 framing-probe ready");
+        uiLog("eNS1 Mirror Test v0.9 file-log ready");
+        uiLog("Log file: " + (sessionLogFile == null ? "unavailable" : sessionLogFile.getName()));
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
         wTxt = findViewById(R.id.w);
         hTxt = findViewById(R.id.h);
         serialTxt = findViewById(R.id.serial);
         mirrorBtn = findViewById(R.id.mirror);
+        shareLogBtn = findViewById(R.id.share_log);
+        shareLogBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                shareSessionLog();
+            }
+        });
         mirrorBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -205,6 +237,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        Utils.setLogSink(null);
+        closeSessionLog();
         super.onDestroy();
         mContext.unregisterReceiver(mUsbReceiver);
     }
@@ -248,6 +282,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void uiLog(final String text) {
+        appendSessionLog("UI", text);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -257,6 +292,84 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    private void startSessionLog() {
+        try {
+            File dir = new File(getExternalFilesDir(null), "logs");
+            if (!dir.exists() && !dir.mkdirs()) {
+                return;
+            }
+            String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            sessionLogFile = new File(dir, "ens1_carlife_" + stamp + ".log");
+            sessionLogWriter = new BufferedWriter(new FileWriter(sessionLogFile, true));
+            appendSessionLog("SYS", "=== eNS1 CarLife diagnostic session ===");
+            appendSessionLog("SYS", "Android=" + Build.VERSION.RELEASE + " SDK=" + Build.VERSION.SDK_INT);
+            appendSessionLog("SYS", "Device=" + Build.MANUFACTURER + " " + Build.MODEL);
+            appendSessionLog("SYS", "Package=" + getPackageName());
+        } catch (Exception e) {
+            sessionLogWriter = null;
+            sessionLogFile = null;
+        }
+    }
+
+    private void appendSessionLog(String source, String line) {
+        synchronized (logFileLock) {
+            if (sessionLogWriter == null) {
+                return;
+            }
+            try {
+                sessionLogWriter.write(logTimeFormat.format(new Date()));
+                sessionLogWriter.write(" [");
+                sessionLogWriter.write(source);
+                sessionLogWriter.write("] ");
+                sessionLogWriter.write(line == null ? "null" : line);
+                sessionLogWriter.newLine();
+                sessionLogWriter.flush();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private void closeSessionLog() {
+        synchronized (logFileLock) {
+            if (sessionLogWriter != null) {
+                try {
+                    sessionLogWriter.flush();
+                    sessionLogWriter.close();
+                } catch (IOException ignored) {
+                }
+                sessionLogWriter = null;
+            }
+        }
+    }
+
+    private void shareSessionLog() {
+        if (sessionLogFile == null || !sessionLogFile.exists()) {
+            uiLog("Log file unavailable");
+            return;
+        }
+        synchronized (logFileLock) {
+            if (sessionLogWriter != null) {
+                try {
+                    sessionLogWriter.flush();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", sessionLogFile);
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_STREAM, uri);
+            share.putExtra(Intent.EXTRA_SUBJECT, "eNS1 CarLife diagnostic log");
+            share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, "Send CarLife log"));
+        } catch (Exception e) {
+            uiLog("Share log failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
+        }
+    }
+
 
     private void checkUSBDevice() {
         log("checkUSBDevice");
