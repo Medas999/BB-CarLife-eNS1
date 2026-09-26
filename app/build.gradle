@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 200
-        versionName "2.0-visual-ui"
+        versionCode 210
+        versionName "2.1-touch-stage2"
     }
 
     buildTypes {
