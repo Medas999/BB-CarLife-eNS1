@@ -62,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView wTxt, hTxt, serialTxt;
     private Button mirrorBtn;
     private Button shareLogBtn;
+    private Button sharePreviousLogBtn;
+    private File previousLogFile;
     private boolean mirrorPermissionRequested;
 
     private final Object logFileLock = new Object();
@@ -126,6 +128,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         mContext = this;
 
+        previousLogFile = findLatestPreviousLog();
         startSessionLog();
         Utils.setLogSink(new Utils.LogSink() {
             @Override
@@ -150,11 +153,17 @@ public class MainActivity extends AppCompatActivity {
         serialTxt = findViewById(R.id.serial);
         mirrorBtn = findViewById(R.id.mirror);
         shareLogBtn = findViewById(R.id.share_log);
+        sharePreviousLogBtn = findViewById(R.id.share_previous_log);
         shareLogBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 shareSessionLog();
             }
+        });
+        sharePreviousLogBtn.setEnabled(previousLogFile != null && previousLogFile.exists());
+        sharePreviousLogBtn.setText(previousLogFile == null ? "NO PREVIOUS LOG" : "SHARE PREVIOUS LOG");
+        sharePreviousLogBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { shareLogFile(previousLogFile, "previous"); }
         });
         mirrorBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -352,9 +361,30 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private File findLatestPreviousLog() {
+        File dir = new File(getExternalFilesDir(null), "logs");
+        File[] files = dir.listFiles();
+        if (files == null) return null;
+        File latest = null;
+        for (File f : files) {
+            if (f.isFile() && f.getName().startsWith("ens1_carlife_") && f.getName().endsWith(".log")
+                    && (latest == null || f.lastModified() > latest.lastModified())) latest = f;
+        }
+        return latest;
+    }
+
     private void shareSessionLog() {
-        if (sessionLogFile == null || !sessionLogFile.exists()) {
-            uiLog("Log file unavailable");
+        if (sessionLogWriter != null) {
+            synchronized (logFileLock) {
+                try { sessionLogWriter.flush(); } catch (IOException ignored) {}
+            }
+        }
+        shareLogFile(sessionLogFile, "current");
+    }
+
+    private void shareLogFile(File file, String label) {
+        if (file == null || !file.exists()) {
+            uiLog(label + " log file unavailable");
             return;
         }
         synchronized (logFileLock) {
@@ -367,15 +397,15 @@ public class MainActivity extends AppCompatActivity {
         }
         try {
             Uri uri = FileProvider.getUriForFile(
-                    this, getPackageName() + ".fileprovider", sessionLogFile);
+                    this, getPackageName() + ".fileprovider", file);
             Intent share = new Intent(Intent.ACTION_SEND);
             share.setType("text/plain");
             share.putExtra(Intent.EXTRA_STREAM, uri);
-            share.putExtra(Intent.EXTRA_SUBJECT, "eNS1 CarLife diagnostic log");
+            share.putExtra(Intent.EXTRA_SUBJECT, "eNS1 CarLife " + label + " diagnostic log");
             share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(share, "Send CarLife log"));
         } catch (Exception e) {
-            uiLog("Share log failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
+            uiLog("Share " + label + " log failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
         }
     }
 
