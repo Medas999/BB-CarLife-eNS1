@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 240
-        versionName "2.4-spotify-pkce"
+        versionCode 241
+        versionName "2.4.1-spotify-callback-fix"
     }
 
     buildTypes {
