@@ -14,6 +14,8 @@ import android.util.DisplayMetrics;
 import android.view.WindowManager;
 
 import com.baidu.carlife.protobuf.CarlifeCarHardKeyCodeProto;
+import com.baidu.carlife.protobuf.CarlifeFeatureConfigListProto;
+import com.baidu.carlife.protobuf.CarlifeVehicleInfoListProto;
 import com.baidu.carlife.protobuf.CarlifeMusicInitProto;
 import com.baidu.carlife.protobuf.CarlifeModuleStatusListProto;
 import com.baidu.carlife.protobuf.CarlifeModuleStatusProto;
@@ -44,11 +46,18 @@ import static com.projection.car.Utils.MEDIA;
 import static com.projection.car.Utils.MSG_CMD_FOREGROUND;
 import static com.projection.car.Utils.MSG_CMD_CARLIFE_DATA_SUBSCRIBE;
 import static com.projection.car.Utils.MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE;
+import static com.projection.car.Utils.MSG_CMD_CAR_DATA_SUBSCRIBE_REQ;
+import static com.projection.car.Utils.MSG_CMD_CAR_DATA_SUBSCRIBE_RSP;
 import static com.projection.car.Utils.MSG_CMD_HU_INFO;
+import static com.projection.car.Utils.MSG_CMD_HU_FEATURE_CONFIG_RESPONSE;
+import static com.projection.car.Utils.MSG_CMD_HU_RSA_PUBLIC_KEY_RESPONSE;
 import static com.projection.car.Utils.MSG_CMD_HU_PROTOCOL_VERSION;
 import static com.projection.car.Utils.MSG_CMD_MD_AUTHEN_RESULT;
+import static com.projection.car.Utils.MSG_CMD_MD_FEATURE_CONFIG_REQUEST;
+import static com.projection.car.Utils.MSG_CMD_MD_RSA_PUBLIC_KEY_REQUEST;
 import static com.projection.car.Utils.MSG_CMD_MD_INFO;
 import static com.projection.car.Utils.MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS;
+import static com.projection.car.Utils.MSG_CMD_SCREEN_ON;
 import static com.projection.car.Utils.MSG_CMD_STATISTIC_INFO;
 import static com.projection.car.Utils.MSG_CMD_VIDEO_ENCODER_INIT;
 import static com.projection.car.Utils.MSG_CMD_VIDEO_ENCODER_INIT_DONE;
@@ -77,6 +86,9 @@ public class MsgProcess {
     private volatile boolean huVideoStarted;
     private volatile boolean mdInfoSent;
     private volatile boolean moduleStatusSent;
+    private volatile boolean featureConfigRequested;
+    private volatile boolean carDataSubscribeRequested;
+    private volatile boolean postStatisticsFlowSent;
     private volatile int huProtocolMajor = 1;
     private volatile int protocolProbeAttempt;
     private FileInputStream mInputStream;
@@ -135,6 +147,9 @@ public class MsgProcess {
         mirrorRequested = false;
         mdInfoSent = false;
         moduleStatusSent = false;
+        featureConfigRequested = false;
+        carDataSubscribeRequested = false;
+        postStatisticsFlowSent = false;
         protocolProbeAttempt = 0;
         mInputStream = in;
         mOutputStream = out;
@@ -306,6 +321,41 @@ public class MsgProcess {
         mOutputStream.write(inner);
     }
 
+    private void sendPhoneV2HuInfoFollowups() throws IOException {
+        if (!featureConfigRequested) {
+            sendCmdDirect(MSG_CMD_MD_FEATURE_CONFIG_REQUEST, null);
+            featureConfigRequested = true;
+            log("TX original-phone flow FEATURE_CONFIG_REQUEST 0x00010051");
+            mInfoListener.onProtocolEvent("TX feature config request");
+        }
+        if (!carDataSubscribeRequested) {
+            sendCmdDirect(MSG_CMD_CAR_DATA_SUBSCRIBE_REQ, null);
+            carDataSubscribeRequested = true;
+            log("TX original-phone flow CAR_DATA_SUBSCRIBE_REQ 0x00010031");
+            mInfoListener.onProtocolEvent("TX car data subscribe request");
+        }
+    }
+
+    private void sendPhoneV2PostStatisticsFlow() throws IOException {
+        if (postStatisticsFlowSent) {
+            return;
+        }
+        postStatisticsFlowSent = true;
+
+        // Exact sequence used by the reference Android-phone CarLife client after STATISTIC_INFO.
+        sendCmdDirect(MSG_CMD_FOREGROUND, null);
+        sendCmdDirect(MSG_CMD_SCREEN_ON, null);
+        sendCmdDirect(MSG_CMD_MD_AUTHEN_RESULT, new byte[] {0x08, 0x01});
+        if (!carDataSubscribeRequested) {
+            sendCmdDirect(MSG_CMD_CAR_DATA_SUBSCRIBE_REQ, null);
+            carDataSubscribeRequested = true;
+        }
+        sendCmdDirect(MSG_CMD_MD_RSA_PUBLIC_KEY_REQUEST, null);
+
+        log("TX original-phone post-stat flow: FOREGROUND, SCREEN_ON, AUTH_OK, SUBSCRIBE, RSA_REQUEST");
+        mInfoListener.onProtocolEvent("TX post-stat phone flow: foreground/screen/auth/subscribe/RSA");
+    }
+
     private void scheduleOfficialModuleStatus() {
         if (moduleStatusSent) {
             return;
@@ -354,7 +404,6 @@ public class MsgProcess {
         if (!mdInfoSent) {
             sendCmdDirect(MSG_CMD_MD_INFO, mMdInfoPayload);
             mdInfoSent = true;
-            scheduleOfficialModuleStatus();
         }
 
         return (System.nanoTime() - started) / 1000L;
@@ -457,6 +506,7 @@ public class MsgProcess {
                                                 } else {
                                                     mInfoListener.onProtocolEvent("HU_INFO received; MD_INFO already sent");
                                                 }
+                                                sendPhoneV2HuInfoFollowups();
                                             }
                                             break;
                                             case MSG_CMD_CARLIFE_DATA_SUBSCRIBE: {
@@ -508,6 +558,35 @@ public class MsgProcess {
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
+                                            case MSG_CMD_HU_FEATURE_CONFIG_RESPONSE: {
+                                                try {
+                                                    CarlifeFeatureConfigListProto.CarlifeFeatureConfigList cfg =
+                                                            CarlifeFeatureConfigListProto.CarlifeFeatureConfigList.parseFrom(msgdata);
+                                                    mInfoListener.onProtocolEvent("HU feature config response: cnt=" + cfg.getCnt());
+                                                    log("HU feature config = " + cfg.toString());
+                                                } catch (Exception e) {
+                                                    mInfoListener.onProtocolEvent("HU feature config response: " + msgdata.length + " bytes");
+                                                }
+                                            }
+                                            break;
+                                            case MSG_CMD_CAR_DATA_SUBSCRIBE_RSP: {
+                                                try {
+                                                    CarlifeVehicleInfoListProto.CarlifeVehicleInfoList info =
+                                                            CarlifeVehicleInfoListProto.CarlifeVehicleInfoList.parseFrom(msgdata);
+                                                    mInfoListener.onProtocolEvent("HU car data subscribe response: cnt=" + info.getCnt());
+                                                    log("HU car data subscribe response = " + info.toString());
+                                                } catch (Exception e) {
+                                                    mInfoListener.onProtocolEvent("HU car data subscribe response: " + msgdata.length + " bytes");
+                                                }
+                                            }
+                                            break;
+                                            case MSG_CMD_HU_RSA_PUBLIC_KEY_RESPONSE: {
+                                                // We only need to prove whether this Honda requests encrypted content.
+                                                // Full AES negotiation will be added only if this response is actually observed.
+                                                mInfoListener.onProtocolEvent("HU RSA public key response: " + msgdata.length + " bytes");
+                                                log("HU RSA public key payload = " + Arrays.toString(msgdata));
+                                            }
+                                            break;
                                             case MSG_CMD_STATISTIC_INFO: {
 
                                                 try {
@@ -523,9 +602,7 @@ public class MsgProcess {
                                                 } catch (InvalidProtocolBufferException e) {
                                                     e.printStackTrace();
                                                 }
-                                                CarlifeAuthenResultProto.CarlifeAuthenResult.Builder builder = CarlifeAuthenResultProto.CarlifeAuthenResult.newBuilder();
-                                                builder.setResult(true);
-                                                mUsbWriteHandler.obtainMessage(MSG_CMD_MD_AUTHEN_RESULT, exportCMDMsg(MSG_CMD_MD_AUTHEN_RESULT, builder.build().toByteArray())).sendToTarget();
+                                                sendPhoneV2PostStatisticsFlow();
                                             }
                                             break;
                                             default: {
