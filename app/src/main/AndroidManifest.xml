@@ -4,6 +4,7 @@
     <uses-feature android:name="android.hardware.usb.accessory" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!--<uses-permission-->
     <!--android:name="android.permission.CHANGE_CONFIGURATION"-->
     <!--tools:ignore="ProtectedPermissions" />-->
