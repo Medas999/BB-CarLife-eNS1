@@ -134,7 +134,7 @@ public class MediaCodecTool {
             p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(i==0?2.5f:1.2f);p.setColor(i==0?accents[i]:Color.argb(110,120,175,215));
             c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);p.setStyle(Paint.Style.FILL);
             // colored visual area
-            p.setShader(new LinearGradient(x,y,x+cw,y+112,Color.argb(210,accents[i]),Color.argb(35,accents[i]),Shader.TileMode.CLAMP));
+            p.setShader(new LinearGradient(x,y,x+cw,y+112,withAlpha(accents[i],210),withAlpha(accents[i],35),Shader.TileMode.CLAMP));
             c.drawRoundRect(new RectF(x+1,y+1,x+cw-1,y+112),24,24,p);p.setShader(null);
             drawIcon(c,p,i,x+cw/2,y+55,36,Color.WHITE);
             p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(25);p.setColor(Color.WHITE);
@@ -170,7 +170,7 @@ public class MediaCodecTool {
         c.restore();
     }
 
-    private void drawIcon(Canvas c,Paint p,int type,float cx,float cy,float r,int color){
+    private int withAlpha(int color,int alpha){ return (color & 0x00FFFFFF) | ((alpha & 0xFF) << 24); }\n\n    private void drawIcon(Canvas c,Paint p,int type,float cx,float cy,float r,int color){
         p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(4,r*.14f));p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
         Path q=new Path();
         if(type==0){ // navigation arrow
