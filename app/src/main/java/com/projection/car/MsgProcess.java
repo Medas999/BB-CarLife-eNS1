@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Path;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
@@ -14,6 +15,8 @@ import android.view.WindowManager;
 
 import com.baidu.carlife.protobuf.CarlifeCarHardKeyCodeProto;
 import com.baidu.carlife.protobuf.CarlifeMusicInitProto;
+import com.baidu.carlife.protobuf.CarlifeModuleStatusListProto;
+import com.baidu.carlife.protobuf.CarlifeModuleStatusProto;
 import com.baidu.carlife.protobuf.CarlifeSubscribeMobileCarLifeInfoListProto;
 import com.baidu.carlife.protobuf.CarlifeTouchActionProto;
 import com.example.car.CarlifeAuthenResultProto;
@@ -72,11 +75,14 @@ public class MsgProcess {
     private volatile boolean usbOk;
     private volatile boolean mirrorRequested;
     private volatile boolean huVideoStarted;
+    private volatile boolean mdInfoSent;
+    private volatile boolean moduleStatusSent;
     private volatile int huProtocolMajor = 1;
     private volatile int protocolProbeAttempt;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
     private Activity mContext;
+    private byte[] mMdInfoPayload;
 
 
     private Handler mUsbReadHandler;
@@ -116,6 +122,7 @@ public class MsgProcess {
         refreshSize();
 
         mMediaCodecTool = new MediaCodecTool();
+        mMdInfoPayload = buildMdInfoPayload();
 
         startUsbTransferThread();
 
@@ -126,6 +133,8 @@ public class MsgProcess {
         usbOk = true;
         huVideoStarted = false;
         mirrorRequested = false;
+        mdInfoSent = false;
+        moduleStatusSent = false;
         protocolProbeAttempt = 0;
         mInputStream = in;
         mOutputStream = out;
@@ -241,6 +250,85 @@ public class MsgProcess {
         return offset;
     }
 
+    private byte[] buildMdInfoPayload() {
+        CarlifeDeviceInfoProto.CarlifeDeviceInfo.Builder builder =
+                CarlifeDeviceInfoProto.CarlifeDeviceInfo.newBuilder();
+        try { builder.setOs("Android"); } catch (Throwable ignored) {}
+        try { builder.setBoard(Build.BOARD); } catch (Throwable ignored) {}
+        try { builder.setBootloader(Build.BOOTLOADER); } catch (Throwable ignored) {}
+        try { builder.setBrand(Build.BRAND); } catch (Throwable ignored) {}
+        try { builder.setCpuAbi(Build.CPU_ABI); } catch (Throwable ignored) {}
+        try { builder.setCpuAbi2(Build.CPU_ABI2); } catch (Throwable ignored) {}
+        try { builder.setDevice(Build.DEVICE); } catch (Throwable ignored) {}
+        try { builder.setDisplay(Build.DISPLAY); } catch (Throwable ignored) {}
+        try { builder.setFingerprint(Build.FINGERPRINT); } catch (Throwable ignored) {}
+        try { builder.setHardware(Build.HARDWARE); } catch (Throwable ignored) {}
+        try { builder.setHost(Build.HOST); } catch (Throwable ignored) {}
+        try { builder.setCid(Build.ID); } catch (Throwable ignored) {}
+        try { builder.setManufacturer(Build.MANUFACTURER); } catch (Throwable ignored) {}
+        try { builder.setModel(Build.MODEL); } catch (Throwable ignored) {}
+        try { builder.setProduct(Build.PRODUCT); } catch (Throwable ignored) {}
+        try { builder.setSerial(Build.SERIAL == null ? "unknown" : Build.SERIAL); } catch (Throwable ignored) {
+            builder.setSerial("unknown");
+        }
+        try { builder.setCodename(Build.VERSION.CODENAME); } catch (Throwable ignored) {}
+        try { builder.setIncremental(Build.VERSION.INCREMENTAL); } catch (Throwable ignored) {}
+        try { builder.setRelease(Build.VERSION.RELEASE); } catch (Throwable ignored) {}
+        try { builder.setSdk(Build.VERSION.SDK); } catch (Throwable ignored) {}
+        try { builder.setSdkInt(Build.VERSION.SDK_INT); } catch (Throwable ignored) {}
+        try { builder.setBtaddress("unknown"); } catch (Throwable ignored) {}
+        try { builder.setBtname(Build.MODEL); } catch (Throwable ignored) {}
+        return builder.build().toByteArray();
+    }
+
+    private byte[] buildModuleStatusPayload() {
+        CarlifeModuleStatusListProto.CarlifeModuleStatusList.Builder list =
+                CarlifeModuleStatusListProto.CarlifeModuleStatusList.newBuilder();
+        int[] modules = new int[] {1, 2, 3, 4, 6, 8, 9};
+        for (int moduleId : modules) {
+            CarlifeModuleStatusProto.CarlifeModuleStatus status =
+                    CarlifeModuleStatusProto.CarlifeModuleStatus.newBuilder()
+                            .setModuleID(moduleId)
+                            .setStatusID(0)
+                            .build();
+            list.addModuleStatus(status);
+        }
+        list.setCnt(list.getModuleStatusCount());
+        return list.build().toByteArray();
+    }
+
+    private void sendCmdDirect(int serviceType, byte[] payload) throws IOException {
+        byte[] inner = exportCMDMsg(serviceType, payload, 0);
+        byte[] outer = new byte[8];
+        outer[3] = CMD;
+        intToBytes2(inner.length, outer, 4);
+        mOutputStream.write(outer);
+        mOutputStream.write(inner);
+    }
+
+    private void scheduleOfficialModuleStatus() {
+        if (moduleStatusSent) {
+            return;
+        }
+        moduleStatusSent = true;
+        mMainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!usbOk || mOutputStream == null) {
+                    return;
+                }
+                try {
+                    byte[] payload = buildModuleStatusPayload();
+                    sendCmdDirect(0x00010026, payload);
+                    log("TX original-phone flow MODULE_STATUS_LIST 0x00010026 payload=" + payload.length);
+                    mInfoListener.onProtocolEvent("TX module status list (original v2 flow)");
+                } catch (Exception e) {
+                    log("TX module status failed: " + e.getMessage());
+                }
+            }
+        }, 500);
+    }
+
     /**
      * Send the exact legacy/official CarLife v2 VERSION_MATCH_STATUS packet with the
      * minimum possible latency.  Older Baidu phone code supports HU protocol v2.0
@@ -260,6 +348,15 @@ public class MsgProcess {
         final long started = System.nanoTime();
         mOutputStream.write(outer);
         mOutputStream.write(inner);
+
+        // Baidu's Android phone client that supports protocol 2.0 immediately sends
+        // MD_INFO after VERSION_MATCH_STATUS, before HU_INFO arrives.
+        if (!mdInfoSent) {
+            sendCmdDirect(MSG_CMD_MD_INFO, mMdInfoPayload);
+            mdInfoSent = true;
+            scheduleOfficialModuleStatus();
+        }
+
         return (System.nanoTime() - started) / 1000L;
     }
 
@@ -316,7 +413,7 @@ public class MsgProcess {
                                     if (fastTxMicros >= 0) {
                                         log("FAST TX exact packet outer=[0,0,0,1,0,0,0,10] inner=[0,2,0,0,0,1,0,2,8,1] in " +
                                                 fastTxMicros + " us");
-                                        mInfoListener.onProtocolEvent("FAST TX official STATUS=1 r0 in " + fastTxMicros + " us");
+                                        mInfoListener.onProtocolEvent("FAST TX STATUS=1 + MD_INFO in " + fastTxMicros + " us");
                                     }
 
                                     byte[] carmsg = new byte[carmsgLenUnsigned];
@@ -353,16 +450,13 @@ public class MsgProcess {
                                                     e.printStackTrace();
                                                 }
 
-                                                CarlifeDeviceInfoProto.CarlifeDeviceInfo.Builder builder = CarlifeDeviceInfoProto.CarlifeDeviceInfo.newBuilder();
-                                                builder.setSdkInt(29);
-                                                builder.setSdk("29");
-                                                builder.setSerial("unknown");
-                                                builder.setCid("QKQ1.190828.002");
-                                                builder.setBoard("sdm845");
-                                                builder.setOs("Android");
-                                                builder.setRelease("10");
-                                                builder.setHost("c4-miui-ota-bd47.bj");
-                                                mUsbWriteHandler.obtainMessage(MSG_CMD_MD_INFO, exportCMDMsg(MSG_CMD_MD_INFO, builder.build().toByteArray())).sendToTarget();
+                                                if (!mdInfoSent) {
+                                                    sendCmdDirect(MSG_CMD_MD_INFO, mMdInfoPayload);
+                                                    mdInfoSent = true;
+                                                    mInfoListener.onProtocolEvent("TX MD_INFO after HU_INFO fallback");
+                                                } else {
+                                                    mInfoListener.onProtocolEvent("HU_INFO received; MD_INFO already sent");
+                                                }
                                             }
                                             break;
                                             case MSG_CMD_CARLIFE_DATA_SUBSCRIBE: {
