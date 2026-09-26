@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 180
-        versionName "1.8-low-latency-audio"
+        versionCode 190
+        versionName "1.9-car-ui-stage1"
     }
 
     buildTypes {
