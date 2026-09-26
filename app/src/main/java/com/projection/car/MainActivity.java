@@ -228,7 +228,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         checkUSBDevice();
-        AndroidAutoHostProbe.probe((ok,msg) -> runOnUiThread(() -> uiLog((ok?"AA BRIDGE READY: ":"AA BRIDGE: ")+msg)));
 
     }
 
