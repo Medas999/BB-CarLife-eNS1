@@ -157,30 +157,7 @@ public class MsgProcess {
 
     }
 
-    public void requestMirrorPermission() {
-        if (mirrorRequested) {
-            mInfoListener.onProtocolEvent("Mirror permission already requested");
-            return;
-        }
-        mirrorRequested = true;
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE,
-                        mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
-            }
-        });
-    }
-
-    public boolean mediaPermissionOk(Activity activity, int paramInt2, Intent paramIntent) {
-        boolean ok = mMediaCodecTool.onActivityResult(activity, paramInt2, paramIntent);
-        if (!ok) {
-            mirrorRequested = false;
-        }
-        return ok;
-    }
-
-    public synchronized void resetUsb() {
+    public void startCarUi() {\n        if (mMediaCodecTool.isProjectionActive()) return;\n        mInfoListener.onProtocolEvent(\"Starting native Car UI renderer\");\n        mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);\n    }\n\n    public synchronized void resetUsb() {
         if (usbOk) {
             log("resetUsb");
             usbOk = false;
