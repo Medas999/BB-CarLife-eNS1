@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 331
-        versionName "3.3.1-aa-version-fix"
+        versionCode 332
+        versionName "3.3.2-aa-openhu-frame"
     }
 
     buildTypes {
