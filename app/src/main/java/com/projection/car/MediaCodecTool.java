@@ -229,7 +229,8 @@ public class MediaCodecTool {
             int hit=hitTile(x,y);
             if(page==5 && x>=430 && x<=900 && y>=365 && y<=455){calibrating=true;calStep=0;pressed=-1;return;}
             if(page==5 && x>=430 && x<=900 && y>=475 && y<=550){calibrated=false;calMinX=0;calMaxX=1024;calMinY=0;calMaxY=768;if(appContext!=null)appContext.getSharedPreferences("carui_touch",0).edit().clear().apply();}
-            if(page==3 && x>=300 && x<=760 && y>=365 && y<=520){startSpotifyLogin();}\n            if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
+            if(page==3 && x>=300 && x<=760 && y>=365 && y<=520){startSpotifyLogin();}
+            if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
             if(hit>=0 && hit==pressed) page=hit+1;
             else if(page>0 && y>=540) page=0;
             pressed=-1;
