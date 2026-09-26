@@ -229,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
 
         checkUSBDevice();
         handleSpotifyIntent(getIntent());
+        AndroidAutoHostProbe.probe((ok,msg) -> runOnUiThread(() -> uiLog((ok?"AA BRIDGE READY: ":"AA BRIDGE: ")+msg)));
 
     }
 
