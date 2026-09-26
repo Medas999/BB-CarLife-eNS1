@@ -134,6 +134,7 @@ public class MsgProcess {
         refreshSize();
 
         mMediaCodecTool = new MediaCodecTool();
+        mMediaCodecTool.setContext(context);
         mMdInfoPayload = buildMdInfoPayload();
 
         startUsbTransferThread();
