@@ -4,7 +4,7 @@
     <uses-feature android:name="android.hardware.usb.accessory" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <!--<uses-permission-->
     <!--android:name="android.permission.CHANGE_CONFIGURATION"-->
     <!--tools:ignore="ProtectedPermissions" />-->
@@ -30,6 +30,7 @@
         <activity
             android:name="com.projection.car.MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|keyboard|layoutDirection|screenSize"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustPan|stateHidden">
@@ -41,7 +42,6 @@
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
             </intent-filter>
-
             <meta-data
                 android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
                 android:resource="@xml/accessory_filter" />

@@ -140,6 +140,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         checkPermission();
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 2209);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 2208);
         }
@@ -149,7 +150,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v1.4 phone-init flow ready");
+        uiLog("eNS1 Car UI stage 1 ready");
         uiLog("Log file: " + (sessionLogFile == null ? "unavailable" : sessionLogFile.getName()));
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
@@ -230,21 +231,12 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    protected void onActivityResult(int paramInt1, int paramInt2, Intent paramIntent) {
-        super.onActivityResult(paramInt1, paramInt2, paramIntent);
-        if (paramInt1 == REQUEST_CODE) {
-            boolean ok = mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
-            uiLog(ok ? "Screen capture active; waiting for HU VIDEO_START"
-                    : "Screen capture cancelled/failed");
-        }
-    }
-
     private void requestMirror() {
         if (mMsgProcess == null) {
             uiLog("Mirror unavailable: CarLife engine not ready");
             return;
         }
-        uiLog("Starting 1280x720 H.264 mirror...");
+        uiLog("Starting AA bridge placeholder...");
         mMsgProcess.requestMirrorPermission();
     }
 
@@ -291,7 +283,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mMsgProcess.startProjection(mInputStream, mOutputStream);
                 uiLog("USB opened. CarLife session started.");
-                uiLog("Handshake first: do not start mirror yet.");
+                uiLog("Handshake first; native Car UI starts on VIDEO_START.");
                 mWakeLock.acquire();//保持屏幕唤醒
 
 

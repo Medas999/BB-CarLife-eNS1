@@ -134,6 +134,7 @@ public class MsgProcess {
         refreshSize();
 
         mMediaCodecTool = new MediaCodecTool();
+        mMediaCodecTool.setContext(context);
         mMdInfoPayload = buildMdInfoPayload();
 
         startUsbTransferThread();
@@ -157,28 +158,14 @@ public class MsgProcess {
 
     }
 
-    public void requestMirrorPermission() {
-        if (mirrorRequested) {
-            mInfoListener.onProtocolEvent("Mirror permission already requested");
-            return;
-        }
-        mirrorRequested = true;
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE,
-                        mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
-            }
-        });
+    public void startCarUi() {
+        if (mMediaCodecTool.isProjectionActive()) return;
+        mInfoListener.onProtocolEvent("Starting native Car UI renderer");
+        mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
     }
 
-    public boolean mediaPermissionOk(Activity activity, int paramInt2, Intent paramIntent) {
-        boolean ok = mMediaCodecTool.onActivityResult(activity, paramInt2, paramIntent);
-        if (!ok) {
-            mirrorRequested = false;
-        }
-        return ok;
-    }
+    public void requestMirrorPermission() { startCarUi(); }
+    public boolean mediaPermissionOk(Activity activity, int resultCode, Intent data) { return mMediaCodecTool.isProjectionActive(); }
 
     public synchronized void resetUsb() {
         if (usbOk) {
@@ -186,11 +173,29 @@ public class MsgProcess {
             usbOk = false;
             huVideoStarted = false;
             mMediaCodecTool.stopProjection();
+            AndroidAutoHostProbe.stopSession();
+            AndroidAutoFullBridge.stop();
             mUsbWriteHandler.removeCallbacksAndMessages(null);
         }
 
     }
 
+
+    private void queueAndroidAutoVideo(byte[] data) {
+        if (!usbOk || !huVideoStarted || data == null || data.length == 0) return;
+        try {
+            videoTxCount++;
+            log("AA->CARLIFE VIDEO #" + videoTxCount + " h264Bytes=" + data.length);
+            byte[] carLifeMsg = exportVideoMsg(MSG_VIDEO_DATA, data);
+            byte[] headmsg = new byte[8];
+            headmsg[3] = VIDEO;
+            intToBytes2(carLifeMsg.length, headmsg, 4);
+            mUsbWriteHandler.removeMessages(MSG_WRITE_VIDEO);
+            mUsbWriteHandler.obtainMessage(MSG_WRITE_VIDEO, new CarMsg(headmsg, carLifeMsg)).sendToTarget();
+        } catch (Throwable t) {
+            log("AA->CARLIFE VIDEO ERROR " + t);
+        }
+    }
 
     private MediaCodecTool.VideoDataEncodeListener videoDataEncodeListener = new MediaCodecTool.VideoDataEncodeListener() {
         @Override
@@ -264,7 +269,8 @@ public class MsgProcess {
     }
 
     private void genarateGesture(int type, float g_x, float g_y) {
-        log("Touch received from HU (disabled in handshake-only build): type=" + type + ", x=" + g_x + ", y=" + g_y);
+        log("Touch received from HU: type=" + type + ", x=" + g_x + ", y=" + g_y);
+        mMediaCodecTool.onCarTouch(type, g_x, g_y);
     }
 
     private int readFully(FileInputStream in, byte[] buffer, int length) throws IOException {
@@ -580,7 +586,15 @@ public class MsgProcess {
                                             break;
                                             case MSG_CMD_VIDEO_ENCODER_START: {
                                                 huVideoStarted = true;
-                                                mInfoListener.onProtocolEvent("HU requested video start -> H.264 enabled");
+                                                mInfoListener.onProtocolEvent("HU requested video start -> starting Android Auto bridge");
+                                                AndroidAutoFullBridge.start(new AndroidAutoFullBridge.Listener() {
+                                                    @Override public void onStatus(boolean ok, String aaStatus) {
+                                                        mInfoListener.onProtocolEvent((ok ? "AA: " : "AA ERROR: ") + aaStatus);
+                                                    }
+                                                    @Override public void onVideo(byte[] h264) {
+                                                        queueAndroidAutoVideo(h264);
+                                                    }
+                                                });
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
@@ -778,12 +792,7 @@ public class MsgProcess {
                             log("msg=MSG_MEDIA_INIT" + "write data =" + Arrays.toString(carLifeMsg));
                             log("write data ok  audiohandler start");
 
-                            if (!mMediaCodecTool.isProjectionActive()) {
-                                mInfoListener.onProtocolEvent("HU requested video; mirror not active yet");
-                                requestMirrorPermission();
-                            } else {
-                                mInfoListener.onProtocolEvent("HU video start -> mirror already streaming");
-                            }
+                            mInfoListener.onProtocolEvent("HU video start -> waiting for Android Auto H264");
                         }
                         break;
                         case MSG_WRITE_AUDIO:
