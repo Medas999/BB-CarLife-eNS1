@@ -241,6 +241,28 @@ public class MsgProcess {
         return offset;
     }
 
+    /**
+     * Send the exact legacy/official CarLife v2 VERSION_MATCH_STATUS packet with the
+     * minimum possible latency.  Older Baidu phone code supports HU protocol v2.0
+     * and responds with only { matchStatus = 1 }; AOA sends its 8-byte mux header
+     * and the CarLife command as two consecutive FileOutputStream writes.
+     */
+    private long sendOfficialProtocolMatchFast() throws IOException {
+        final byte[] outer = new byte[] {
+                0, 0, 0, CMD,
+                0, 0, 0, 10
+        };
+        final byte[] inner = new byte[] {
+                0, 2, 0, 0,
+                0, 1, 0, 2,
+                8, 1
+        };
+        final long started = System.nanoTime();
+        mOutputStream.write(outer);
+        mOutputStream.write(inner);
+        return (System.nanoTime() - started) / 1000L;
+    }
+
     private void startUsbTransferThread() {
         HandlerThread inthread = new HandlerThread("read");
         inthread.start();
@@ -259,23 +281,46 @@ public class MsgProcess {
 
                                 if (len == 8) {
                                     int msg_type = data[3];
-                                    log("msg_type = " + msg_type + ", read data = " + Arrays.toString(data));
                                     int msgLen = bytesToInt2(data, 4);
-                                    mInfoListener.onProtocolEvent(String.format("USB RX outer type=%d len=%d", msg_type, msgLen));
-                                    log("msgLen = " + msgLen);
+                                    if (msgLen < 8 || msgLen > (64 * 1024 * 1024)) {
+                                        throw new IOException("Invalid CarLife outer length " + msgLen);
+                                    }
                                     byte[] msgdata = new byte[msgLen];
                                     len = readFully(mInputStream, msgdata, msgdata.length);
-                                    log("read data = " + Arrays.toString(msgdata));
-                                    log("read msg data = " + len + " msgLen " + msgLen);
-                                    short carmsgLen = bytesToShort2(msgdata, 0);
+
+                                    int carmsgLenUnsigned = bytesToShort2(msgdata, 0) & 0xFFFF;
                                     int innerReserved = bytesToShort2(msgdata, 2) & 0xFFFF;
                                     int type = bytesToInt2(msgdata, 4);
-                                    log("read carmsgLen data = " + carmsgLen + " reserved " + innerReserved + " type " + type);
-                                    if (msg_type == CMD) {
-                                        mInfoListener.onProtocolEvent(String.format("RX CMD 0x%08X reserved=%d payload=%d", type, innerReserved, carmsgLen & 0xFFFF));
+                                    if (carmsgLenUnsigned > msgLen - 8) {
+                                        throw new IOException("Invalid CarLife payload length " + carmsgLenUnsigned +
+                                                " for outer body " + msgLen);
                                     }
-                                    byte[] carmsg = new byte[carmsgLen];
-                                    System.arraycopy(msgdata, 8, carmsg, 0, carmsgLen);
+
+                                    // Critical timing probe: reply before file/UI logging, protobuf parsing,
+                                    // HandlerThread scheduling, or any other work.
+                                    long fastTxMicros = -1L;
+                                    if (msg_type == CMD && type == MSG_CMD_HU_PROTOCOL_VERSION) {
+                                        fastTxMicros = sendOfficialProtocolMatchFast();
+                                    }
+
+                                    log("msg_type = " + msg_type + ", read data = " + Arrays.toString(data));
+                                    mInfoListener.onProtocolEvent(String.format("USB RX outer type=%d len=%d", msg_type, msgLen));
+                                    log("msgLen = " + msgLen);
+                                    log("read data = " + Arrays.toString(msgdata));
+                                    log("read msg data = " + len + " msgLen " + msgLen);
+                                    log("read carmsgLen data = " + carmsgLenUnsigned + " reserved " + innerReserved + " type " + type);
+                                    if (msg_type == CMD) {
+                                        mInfoListener.onProtocolEvent(String.format("RX CMD 0x%08X reserved=%d payload=%d",
+                                                type, innerReserved, carmsgLenUnsigned));
+                                    }
+                                    if (fastTxMicros >= 0) {
+                                        log("FAST TX exact packet outer=[0,0,0,1,0,0,0,10] inner=[0,2,0,0,0,1,0,2,8,1] in " +
+                                                fastTxMicros + " us");
+                                        mInfoListener.onProtocolEvent("FAST TX official STATUS=1 r0 in " + fastTxMicros + " us");
+                                    }
+
+                                    byte[] carmsg = new byte[carmsgLenUnsigned];
+                                    System.arraycopy(msgdata, 8, carmsg, 0, carmsgLenUnsigned);
                                     msgdata = carmsg;
                                     if (msg_type == CMD) {
                                         switch (type) {
@@ -292,37 +337,9 @@ public class MsgProcess {
                                                     mInfoListener.onProtocolEvent("HU protocol version received (" + msgdata.length +
                                                             " bytes), rxReserved=" + innerReserved);
                                                 }
-
                                                 protocolProbeAttempt++;
-                                                int probe = ((protocolProbeAttempt - 1) % 3) + 1;
-                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                builder.setMatchStatus(1);
-
-                                                int txReserved;
-                                                String probeName;
-                                                if (probe == 1) {
-                                                    // Baidu V2 defines MSG_CMD_PROTOCOL_VERSION = 1001 and exposes it
-                                                    // as carlifeProtocolVersion in VERSION_MATCH_STATUS.
-                                                    builder.setCarlifeProtocolVersion(1001);
-                                                    txReserved = 0;
-                                                    probeName = "A status+PV1001 r0";
-                                                } else if (probe == 2) {
-                                                    builder.setCarlifeProtocolVersion(1001);
-                                                    txReserved = 2; // legacy MSG_CMD_TYPE_RESPONSE
-                                                    probeName = "B status+PV1001 r2";
-                                                } else {
-                                                    txReserved = 2;
-                                                    probeName = "C legacy-status r2";
-                                                }
-
-                                                byte[] result = builder.build().toByteArray();
-                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, txReserved);
-                                                log("protocol probe " + probeName + " " + Arrays.toString(inner));
-                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " payload=" + result.length);
-                                                Message tx = mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, inner);
-                                                tx.arg1 = 0;
-                                                tx.sendToTarget();
+                                                mInfoListener.onProtocolEvent("Official v2 match already sent inline; retry #" +
+                                                        protocolProbeAttempt + " means HU did not advance");
                                             }
                                             break;
                                             case MSG_CMD_HU_INFO: {
