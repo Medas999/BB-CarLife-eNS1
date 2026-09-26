@@ -201,7 +201,7 @@ public class MediaCodecTool {
         p.setTypeface(Typeface.DEFAULT);p.setTextSize(22);p.setColor(Color.rgb(160,195,220));c.drawText("Раздел подключён к Car UI • этап 2",175,226,p);
         p.setTextSize(25);p.setColor(Color.WHITE);
         c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты YouTube Music":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
-        p.setColor(Color.argb(70,accent[pg]));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
+        p.setColor(withAlpha(accent[pg],70));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
         p.setTextSize(22);p.setColor(Color.rgb(205,225,238));c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);
         p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(70,570,255,625),18,18,p);p.setColor(Color.WHITE);p.setTextSize(20);c.drawText("‹  На главную",95,606,p);
     }
