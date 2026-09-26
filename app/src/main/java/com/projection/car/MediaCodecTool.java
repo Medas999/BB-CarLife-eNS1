@@ -38,6 +38,8 @@ public class MediaCodecTool {
     private long frameNo;
     private int width, height, fps, bitrate;
     private VideoDataEncodeListener listener;
+    private volatile int page=0;
+    private volatile int pressed=-1;
 
     public void startCarUi(VideoDataEncodeListener l, float w, float h, int frameRate, int bitRate) {
         if (active) return;
@@ -124,12 +126,13 @@ public class MediaCodecTool {
         p.setTextSize(28);p.setColor(Color.WHITE);c.drawText(time,895,59,p);
 
         String[] names={"Навигация","YouTube","YouTube Music","Музыка","Настройки"};
+        if(page>0){ drawPage(c,p,page); c.restore(); return; }
         String[] subs={"Карты • маршруты","Видео • подписки","Треки • плейлисты","Медиатека","Экран • звук"};
         int[] accents={Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
         float gap=18,left=30,top=106,cw=(1024-left*2-gap*2)/3f,ch=210;
         for(int i=0;i<5;i++){
             int row=i/3,col=i%3;float x=left+col*(cw+gap),y=top+row*(ch+gap);
-            p.setShadowLayer(18,0,8,Color.argb(130,0,0,0));p.setColor(Color.argb(225,7,25,43));
+            p.setShadowLayer(18,0,8,Color.argb(130,0,0,0));p.setColor(pressed==i?Color.argb(245,20,65,95):Color.argb(225,7,25,43));
             c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);p.clearShadowLayer();
             p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(i==0?2.5f:1.2f);p.setColor(i==0?accents[i]:Color.argb(110,120,175,215));
             c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);p.setStyle(Paint.Style.FILL);
@@ -168,6 +171,39 @@ public class MediaCodecTool {
             c.drawText(dock[i],cx,by+66,p);p.setTextAlign(Paint.Align.LEFT);
         }
         c.restore();
+    }
+
+    public void onCarTouch(int action,float rawX,float rawY){
+        float x=rawX*(1024f/Math.max(1,width)), y=rawY*(768f/Math.max(1,height));
+        // CarLife touch action: 0 down, 1 up, 2 move on the tested Honda implementation.
+        if(action==0){ pressed=hitTile(x,y); }
+        else if(action==1){
+            int hit=hitTile(x,y);
+            if(hit>=0 && hit==pressed) page=hit+1;
+            else if(y>=672) page=0;
+            pressed=-1;
+        }
+        log("CAR UI TOUCH action="+action+" x="+x+" y="+y+" tile="+pressed+" page="+page);
+    }
+
+    private int hitTile(float x,float y){
+        float gap=18,left=30,top=106,cw=(1024-left*2-gap*2)/3f,ch=210;
+        for(int i=0;i<5;i++){int row=i/3,col=i%3;float l=left+col*(cw+gap),t=top+row*(ch+gap);if(x>=l&&x<=l+cw&&y>=t&&y<=t+ch)return i;}
+        return -1;
+    }
+
+    private void drawPage(Canvas c,Paint p,int pg){
+        String[] title={"","Навигация","YouTube","YouTube Music","Музыка","Настройки"};
+        int[] accent={0,Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
+        p.setColor(Color.argb(225,7,25,43));c.drawRoundRect(new RectF(30,106,994,650),28,28,p);
+        p.setColor(accent[pg]);c.drawRoundRect(new RectF(55,132,145,222),24,24,p);drawIcon(c,p,pg-1,100,177,34,Color.WHITE);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(42);p.setColor(Color.WHITE);c.drawText(title[pg],175,188,p);
+        p.setTypeface(Typeface.DEFAULT);p.setTextSize(22);p.setColor(Color.rgb(160,195,220));c.drawText("Раздел подключён к Car UI • этап 2",175,226,p);
+        p.setTextSize(25);p.setColor(Color.WHITE);
+        c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты YouTube Music":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
+        p.setColor(Color.argb(70,accent[pg]));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
+        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);
+        p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(70,570,255,625),18,18,p);p.setColor(Color.WHITE);p.setTextSize(20);c.drawText("‹  На главную",95,606,p);
     }
 
     private int withAlpha(int color,int alpha){
