@@ -782,7 +782,7 @@ public class MsgProcess {
                                 mInfoListener.onProtocolEvent("HU requested video; mirror not active yet");
                                 requestMirrorPermission();
                             } else {
-                                mInfoListener.onProtocolEvent("HU video start -> mirror already streaming");
+                                mInfoListener.onProtocolEvent("HU video start -> Car UI already streaming");
                             }
                         }
                         break;
