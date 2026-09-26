@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 250
-        versionName "2.5-navigation-stage1"
+        versionCode 300
+        versionName "3.0-spotify-navigation"
     }
 
     buildTypes {
