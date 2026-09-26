@@ -163,6 +163,9 @@ public class MsgProcess {
         mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
     }
 
+    public void requestMirrorPermission() { startCarUi(); }
+    public boolean mediaPermissionOk(Activity activity, int resultCode, Intent data) { return mMediaCodecTool.isProjectionActive(); }
+
     public synchronized void resetUsb() {
         if (usbOk) {
             log("resetUsb");
