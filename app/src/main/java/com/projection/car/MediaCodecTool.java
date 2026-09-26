@@ -17,6 +17,8 @@ import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import static com.projection.car.Utils.log;
 
@@ -41,6 +43,13 @@ public class MediaCodecTool {
     private int mBit, mFrame;
 
     private volatile boolean projectionActive;
+    private long encodedFrameCount;
+
+    private static String stack(Throwable t) {
+        StringWriter sw = new StringWriter();
+        t.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
+    }
 
     MediaCodecTool() {
 
@@ -79,6 +88,9 @@ public class MediaCodecTool {
                 @Override
                 public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index, @NonNull MediaCodec.BufferInfo bufferInfo) {
                     try {
+                        encodedFrameCount++;
+                        log("H264 OUT #" + encodedFrameCount + " index=" + index + " size=" + bufferInfo.size +
+                                " flags=0x" + Integer.toHexString(bufferInfo.flags) + " ptsUs=" + bufferInfo.presentationTimeUs);
                         ByteBuffer outputBuffer = mMediaCodec.getOutputBuffer(index);
                         byte[] outData = new byte[bufferInfo.size];
                         outputBuffer.get(outData);
@@ -88,9 +100,11 @@ public class MediaCodecTool {
                             mFirstConfigFrame = true;
                             System.arraycopy(outData, 0, mConfigByte, 0, outData.length);
                             Log.e(TAG, "now CONFIG is" + Arrays.toString(mConfigByte));
+                            log("H264 CONFIG/SPS-PPS bytes=" + mConfigByte.length + " data=" + Arrays.toString(mConfigByte));
                         } else if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) { // 关键帧
                             if (mEncodeCall != null) {
                                 Log.e(TAG, "now frame is" + outData.length);
+                                log("H264 IDR #" + encodedFrameCount + " bytes=" + outData.length);
                                 if (mFirstConfigFrame) {
                                     mFirstConfigFrame = false;
                                     byte[] t = new byte[mConfigByte.length + outData.length];
@@ -109,15 +123,18 @@ public class MediaCodecTool {
                             }
                         }
                         mMediaCodec.releaseOutputBuffer(index, false);
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                    } catch (Throwable e) {
+                        log("H264 CALLBACK ERROR: " + e);
+                        log(stack(e));
                     }
 
                 }
 
                 @Override
                 public void onError(@NonNull MediaCodec codec, @NonNull MediaCodec.CodecException e) {
-
+                    log("H264 MEDIACODEC ERROR diagnostic=" + e.getDiagnosticInfo() + " recoverable=" +
+                            e.isRecoverable() + " transient=" + e.isTransient());
+                    log(stack(e));
                 }
 
                 @Override
@@ -178,8 +195,9 @@ public class MediaCodecTool {
 //            }
 
 
-        } catch (Exception localException) {
-            localException.printStackTrace();
+        } catch (Throwable localException) {
+            log("H264 CREATE/START ERROR: " + localException);
+            log(stack(localException));
         }
     }
 
@@ -235,6 +253,7 @@ public class MediaCodecTool {
         public void onStop() {
 
             Log.e(TAG, "stopping projection.");
+            log("MEDIA_PROJECTION onStop called; encodedFrames=" + encodedFrameCount);
             projectionActive = false;
 
             if (mMediaCodec != null) mMediaCodec.stop();
