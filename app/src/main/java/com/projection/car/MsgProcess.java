@@ -294,23 +294,44 @@ public class MsgProcess {
                                                 }
 
                                                 protocolProbeAttempt++;
-                                                int probe = ((protocolProbeAttempt - 1) % 7) + 1;
+                                                int probe = ((protocolProbeAttempt - 1) % 3) + 1;
                                                 byte[] result;
-                                                int txReserved;
-                                                boolean combinedWrite;
                                                 String probeName;
 
-                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder statusBuilder =
-                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                statusBuilder.setMatchStatus(1);
+                                                if (probe == 1) {
+                                                    // Honda e:NS1 appears to use the 16-bit field as a per-session/request token.
+                                                    // First try: version payload + exact token echoed back.
+                                                    CarlifeProtocolVersionProto.CarlifeProtocolVersion.Builder builder =
+                                                            CarlifeProtocolVersionProto.CarlifeProtocolVersion.newBuilder();
+                                                    builder.setMajorVersion(huProtocolMajor);
+                                                    builder.setMinorVersion(huMinor);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "A echo-token VERSION";
+                                                } else if (probe == 2) {
+                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                    builder.setMatchStatus(1);
+                                                    builder.setCarlifeProtocolVersion(huProtocolMajor);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "B echo-token STATUS+V";
+                                                } else {
+                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                    builder.setMatchStatus(1);
+                                                    result = builder.build().toByteArray();
+                                                    probeName = "C echo-token STATUS";
+                                                }
 
-                                                switch (probe) {
-                                                    case 1:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 0;
-                                                        combinedWrite = false;
-                                                        probeName = "A r0 split";
-                                                        break;
+                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, innerReserved);
+                                                log("protocol probe " + probeName + " token=" + innerReserved + " " + Arrays.toString(inner));
+                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " token=" + innerReserved +
+                                                        " payload=" + result.length);
+                                                Message tx = mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, inner);
+                                                // Official Baidu AOA transport writes outer header and body as separate USB transfers.
+                                                tx.arg1 = 0;
+                                                tx.sendToTarget();
+                                            }
+                                            break;
                                                     case 2:
                                                         result = statusBuilder.build().toByteArray();
                                                         txReserved = 2;
