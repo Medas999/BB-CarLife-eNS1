@@ -170,7 +170,11 @@ public class MediaCodecTool {
         c.restore();
     }
 
-    private int withAlpha(int color,int alpha){ return (color & 0x00FFFFFF) | ((alpha & 0xFF) << 24); }\n\n    private void drawIcon(Canvas c,Paint p,int type,float cx,float cy,float r,int color){
+    private int withAlpha(int color,int alpha){
+        return (color & 0x00FFFFFF) | ((alpha & 0xFF) << 24);
+    }
+
+    private void drawIcon(Canvas c,Paint p,int type,float cx,float cy,float r,int color){
         p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(4,r*.14f));p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
         Path q=new Path();
         if(type==0){ // navigation arrow
