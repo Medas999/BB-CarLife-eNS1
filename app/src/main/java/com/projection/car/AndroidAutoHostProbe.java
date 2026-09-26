@@ -28,12 +28,12 @@ public final class AndroidAutoHostProbe {
             s.setTcpNoDelay(true);s.setSoTimeout(500);
             InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
             log("AA_GAL CONNECTED local=127.0.0.1:5277 ms="+(System.currentTimeMillis()-t));
-            if(listener!=null)listener.onResult(true,"AA socket connected; raw GAL v1.7");
+            if(listener!=null)listener.onResult(true,"AA socket connected; AAP-framed GAL v1.7");
 
             // Android Auto GAL version exchange: 2-byte standard header + 6 raw bytes.
             // channel=0, flags=0 (control/plaintext), VERSION_REQUEST=1, version=1.7.
-            byte[] req=new byte[]{0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x07};
-            log("AA_GAL TX RAW bytes="+req.length+" hex="+hex(req,64));
+            byte[] req=new byte[]{0x00,0x03,0x00,0x06,0x00,0x01,0x00,0x01,0x00,0x07};
+            log("AA_GAL TX AAP bytes="+req.length+" hex="+hex(req,64));
             out.write(req);out.flush();
 
             ByteArrayOutputStream rx=new ByteArrayOutputStream();
