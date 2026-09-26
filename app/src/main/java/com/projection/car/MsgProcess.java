@@ -310,13 +310,32 @@ public class MsgProcess {
         return list.build().toByteArray();
     }
 
+    private static String hex(byte[] data) {
+        if (data == null) return "<null>";
+        StringBuilder sb = new StringBuilder(data.length * 3);
+        for (byte b : data) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(String.format("%02X", b & 0xFF));
+        }
+        return sb.toString();
+    }
+
     private void sendCmdDirect(int serviceType, byte[] payload) throws IOException {
         byte[] inner = exportCMDMsg(serviceType, payload, 0);
         byte[] outer = new byte[8];
         outer[3] = CMD;
         intToBytes2(inner.length, outer, 4);
+        long t = System.nanoTime();
+        log(String.format("TRACE TX CMD type=0x%08X payloadLen=%d reserved=0", serviceType,
+                payload == null ? 0 : payload.length));
+        log("TRACE TX OUTER HEX = " + hex(outer));
+        log("TRACE TX INNER HEX = " + hex(inner));
+        if (payload != null) log("TRACE TX PAYLOAD HEX = " + hex(payload));
         mOutputStream.write(outer);
         mOutputStream.write(inner);
+        mOutputStream.flush();
+        log(String.format("TRACE TX DONE type=0x%08X elapsed=%dus", serviceType,
+                (System.nanoTime() - t) / 1000L));
     }
 
     private void sendPhoneV2HuInfoFollowups() throws IOException {
@@ -432,6 +451,8 @@ public class MsgProcess {
                                     mInfoListener.onProtocolEvent(String.format("USB RX outer type=%d len=%d", msg_type, msgLen));
                                     log("msgLen = " + msgLen);
                                     log("read data = " + Arrays.toString(msgdata));
+                                    log("TRACE RX OUTER HEX = " + hex(data));
+                                    log("TRACE RX INNER HEX = " + hex(msgdata));
                                     log("read msg data = " + len + " msgLen " + msgLen);
                                     log("read carmsgLen data = " + carmsgLenUnsigned + " reserved " + innerReserved + " type " + type);
                                     if (msg_type == CMD) {
@@ -449,6 +470,9 @@ public class MsgProcess {
 
                                     byte[] carmsg = new byte[carmsgLenUnsigned];
                                     System.arraycopy(msgdata, 8, carmsg, 0, carmsgLenUnsigned);
+                                    log(String.format("TRACE RX FRAME channel=%d type=0x%08X reserved=%d payloadLen=%d",
+                                            msg_type, type, innerReserved, carmsgLenUnsigned));
+                                    log("TRACE RX PAYLOAD HEX = " + hex(carmsg));
                                     msgdata = carmsg;
                                     if (msg_type == CMD) {
                                         switch (type) {
@@ -488,7 +512,8 @@ public class MsgProcess {
                                                 } else {
                                                     mInfoListener.onProtocolEvent("HU_INFO received; MD_INFO already sent");
                                                 }
-                                                mInfoListener.onProtocolEvent("HU_INFO parsed; diagnostic flow waits for HU next step");
+                                                mInfoListener.onProtocolEvent("HU_INFO parsed; sending documented MD capability requests");
+                                                sendPhoneV2HuInfoFollowups();
                                             }
                                             break;
                                             case MSG_CMD_CARLIFE_DATA_SUBSCRIBE: {
@@ -584,7 +609,7 @@ public class MsgProcess {
                                                 } catch (InvalidProtocolBufferException e) {
                                                     e.printStackTrace();
                                                 }
-                                                mInfoListener.onProtocolEvent("STATISTIC_INFO parsed; no auth response sent");
+                                                mInfoListener.onProtocolEvent("STATISTIC_INFO parsed; no auth response sent; waiting for HU");
                                             }
                                             break;
                                             default: {
