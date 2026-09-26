@@ -134,6 +134,7 @@ public class MsgProcess {
         refreshSize();
 
         mMediaCodecTool = new MediaCodecTool();
+        mMediaCodecTool.setContext(context);
         mMdInfoPayload = buildMdInfoPayload();
 
         startUsbTransferThread();
@@ -157,28 +158,15 @@ public class MsgProcess {
 
     }
 
-    public void requestMirrorPermission() {
-        if (mirrorRequested) {
-            mInfoListener.onProtocolEvent("Mirror permission already requested");
-            return;
-        }
-        mirrorRequested = true;
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mMediaCodecTool.startProjection(mContext, videoDataEncodeListener, REQUEST_CODE,
-                        mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
-            }
-        });
+    public void startCarUi() {
+        if (mMediaCodecTool.isProjectionActive()) return;
+        mInfoListener.onProtocolEvent("Starting native Car UI renderer");
+        mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
     }
 
-    public boolean mediaPermissionOk(Activity activity, int paramInt2, Intent paramIntent) {
-        boolean ok = mMediaCodecTool.onActivityResult(activity, paramInt2, paramIntent);
-        if (!ok) {
-            mirrorRequested = false;
-        }
-        return ok;
-    }
+    public void requestMirrorPermission() { startCarUi(); }
+    public boolean mediaPermissionOk(Activity activity, int resultCode, Intent data) { return mMediaCodecTool.isProjectionActive(); }
+    public void handleSpotifyCallback(android.net.Uri uri) { mMediaCodecTool.handleSpotifyCallback(uri); }
 
     public synchronized void resetUsb() {
         if (usbOk) {
@@ -264,7 +252,8 @@ public class MsgProcess {
     }
 
     private void genarateGesture(int type, float g_x, float g_y) {
-        log("Touch received from HU (disabled in handshake-only build): type=" + type + ", x=" + g_x + ", y=" + g_y);
+        log("Touch received from HU: type=" + type + ", x=" + g_x + ", y=" + g_y);
+        mMediaCodecTool.onCarTouch(type, g_x, g_y);
     }
 
     private int readFully(FileInputStream in, byte[] buffer, int length) throws IOException {
@@ -782,7 +771,7 @@ public class MsgProcess {
                                 mInfoListener.onProtocolEvent("HU requested video; mirror not active yet");
                                 requestMirrorPermission();
                             } else {
-                                mInfoListener.onProtocolEvent("HU video start -> mirror already streaming");
+                                mInfoListener.onProtocolEvent("HU video start -> Car UI already streaming");
                             }
                         }
                         break;
