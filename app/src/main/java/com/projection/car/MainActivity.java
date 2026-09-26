@@ -227,8 +227,12 @@ public class MainActivity extends AppCompatActivity {
 
 
         checkUSBDevice();
+        handleSpotifyIntent(getIntent());
 
     }
+
+    @Override protected void onNewIntent(Intent intent){ super.onNewIntent(intent); setIntent(intent); handleSpotifyIntent(intent); }
+    private void handleSpotifyIntent(Intent intent){ if(intent!=null && intent.getData()!=null && "ens1carui".equals(intent.getData().getScheme())){ uiLog("Spotify authorization callback received"); if(mMsgProcess!=null)mMsgProcess.handleSpotifyCallback(intent.getData()); } }
 
     protected void onActivityResult(int paramInt1, int paramInt2, Intent paramIntent) {
         super.onActivityResult(paramInt1, paramInt2, paramIntent);
