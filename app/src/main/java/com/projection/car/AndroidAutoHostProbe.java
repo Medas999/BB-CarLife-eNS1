@@ -30,7 +30,7 @@ public final class AndroidAutoHostProbe {
    log("AA_V38 CONNECTED ms="+(System.currentTimeMillis()-t)+" local="+s.getLocalAddress()+":"+s.getLocalPort()+" remote="+s.getRemoteSocketAddress());
    InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
    log("AA_V38 TX VERSION_REQUEST requested=1.2 framedBytes=10 hex="+hex(VERSION_12,64));
-   out.write(VERSION_11); out.flush();
+   out.write(VERSION_12); out.flush();
 
    ByteArrayOutputStream rx=new ByteArrayOutputStream(); byte[] b=new byte[4096];
    long start=System.currentTimeMillis(), deadline=start+12000;
