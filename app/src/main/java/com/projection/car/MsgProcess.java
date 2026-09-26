@@ -88,7 +88,6 @@ public class MsgProcess {
     private volatile boolean moduleStatusSent;
     private volatile boolean featureConfigRequested;
     private volatile boolean carDataSubscribeRequested;
-    private volatile boolean postStatisticsFlowSent;
     private volatile int huProtocolMajor = 1;
     private volatile int protocolProbeAttempt;
     private FileInputStream mInputStream;
@@ -149,7 +148,6 @@ public class MsgProcess {
         moduleStatusSent = false;
         featureConfigRequested = false;
         carDataSubscribeRequested = false;
-        postStatisticsFlowSent = false;
         protocolProbeAttempt = 0;
         mInputStream = in;
         mOutputStream = out;
@@ -404,6 +402,7 @@ public class MsgProcess {
         if (!mdInfoSent) {
             sendCmdDirect(MSG_CMD_MD_INFO, mMdInfoPayload);
             mdInfoSent = true;
+            scheduleOfficialModuleStatus();
         }
 
         return (System.nanoTime() - started) / 1000L;
@@ -458,6 +457,9 @@ public class MsgProcess {
                                     if (msg_type == CMD) {
                                         mInfoListener.onProtocolEvent(String.format("RX CMD 0x%08X reserved=%d payload=%d",
                                                 type, innerReserved, carmsgLenUnsigned));
+                                    } else {
+                                        mInfoListener.onProtocolEvent(String.format("RX channel=%d type=0x%08X reserved=%d payload=%d",
+                                                msg_type, type, innerReserved, carmsgLenUnsigned));
                                     }
                                     if (fastTxMicros >= 0) {
                                         log("FAST TX exact packet outer=[0,0,0,1,0,0,0,10] inner=[0,2,0,0,0,1,0,2,8,1] in " +
@@ -506,7 +508,7 @@ public class MsgProcess {
                                                 } else {
                                                     mInfoListener.onProtocolEvent("HU_INFO received; MD_INFO already sent");
                                                 }
-                                                sendPhoneV2HuInfoFollowups();
+                                                mInfoListener.onProtocolEvent("HU_INFO parsed; diagnostic flow waits for HU next step");
                                             }
                                             break;
                                             case MSG_CMD_CARLIFE_DATA_SUBSCRIBE: {
@@ -592,7 +594,7 @@ public class MsgProcess {
                                                 try {
                                                     final CarlifeStatisticsInfoProto.CarlifeStatisticsInfo statisticsInfo = CarlifeStatisticsInfoProto.CarlifeStatisticsInfo.parseFrom(msgdata);
                                                     log("getCuid = " + statisticsInfo.getCuid() + "" + statisticsInfo.getVersionName() + statisticsInfo.getConnectTime() + statisticsInfo.getCrashLog());
-                                                    mInfoListener.onProtocolEvent("Auth/statistics received: " + statisticsInfo.getVersionName());
+                                                    mInfoListener.onProtocolEvent("STATISTIC_INFO: version=" + statisticsInfo.getVersionName() + ", cuid=" + statisticsInfo.getCuid());
                                                     mMainHandler.post(new Runnable() {
                                                         @Override
                                                         public void run() {
@@ -602,7 +604,7 @@ public class MsgProcess {
                                                 } catch (InvalidProtocolBufferException e) {
                                                     e.printStackTrace();
                                                 }
-                                                sendPhoneV2PostStatisticsFlow();
+                                                mInfoListener.onProtocolEvent("STATISTIC_INFO parsed; no auth response sent");
                                             }
                                             break;
                                             default: {
