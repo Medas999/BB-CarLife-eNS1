@@ -12,7 +12,7 @@ android {
         minSdk 23
         targetSdk 28
         versionCode 360
-        versionName "3.7-aa-framing-matrix"
+        versionName "3.8-aa-single-transport"
     }
 
     buildTypes {
