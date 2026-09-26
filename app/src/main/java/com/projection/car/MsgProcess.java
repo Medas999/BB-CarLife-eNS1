@@ -90,6 +90,7 @@ public class MsgProcess {
     private volatile boolean carDataSubscribeRequested;
     private volatile int huProtocolMajor = 1;
     private volatile int protocolProbeAttempt;
+    private long videoTxCount;
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
     private Activity mContext;
@@ -199,6 +200,8 @@ public class MsgProcess {
             }
             try {
 //                                        log("data len = " + data.length);
+                videoTxCount++;
+                log("VIDEO QUEUE #" + videoTxCount + " h264Bytes=" + data.length);
                 byte[] carLifeMsg = exportVideoMsg(MSG_VIDEO_DATA, data);
                 byte[] headmsg = new byte[8];
                 headmsg[3] = VIDEO;
@@ -771,13 +774,21 @@ public class MsgProcess {
                         case MSG_WRITE_VIDEO: {
                             //log("write audio or video ..................." + msg.what);
                             CarMsg carMsg = (CarMsg) msg.obj;
+                            long txStarted = System.nanoTime();
+                            log("VIDEO USB TX #" + videoTxCount + " outerBytes=" + carMsg.head.length +
+                                    " innerBytes=" + carMsg.msg.length);
                             mOutputStream.write(carMsg.head);
                             mOutputStream.write(carMsg.msg);
+                            log("VIDEO USB TX DONE #" + videoTxCount + " elapsedUs=" +
+                                    ((System.nanoTime() - txStarted) / 1000L));
                         }
                         break;
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log("USB WRITE ERROR: " + e);
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    e.printStackTrace(new java.io.PrintWriter(sw));
+                    log(sw.toString());
                     resetUsb();
                 }
             }
