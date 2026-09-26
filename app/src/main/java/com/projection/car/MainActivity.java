@@ -173,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
         mirrorBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                mMsgProcess.startCarUi();
+                requestMirror();
             }
         });
 
@@ -230,12 +230,264 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    // Car UI mode does not use MediaProjection or screen-capture permissions.
+    protected void onActivityResult(int paramInt1, int paramInt2, Intent paramIntent) {
+        super.onActivityResult(paramInt1, paramInt2, paramIntent);
+        if (paramInt1 == REQUEST_CODE) {
+            boolean ok = mMsgProcess.mediaPermissionOk(this, paramInt2, paramIntent);
+            uiLog(ok ? "Screen capture active; waiting for HU VIDEO_START"
+                    : "Screen capture cancelled/failed");
+        }
+    }
+
     private void requestMirror() {
-        if (mMsgProcess != null) {
-            uiLog("Starting native Car UI...");
-            mMsgProcess.startCarUi();
+        if (mMsgProcess == null) {
+            uiLog("Mirror unavailable: CarLife engine not ready");
+            return;
+        }
+        uiLog("Starting native Car UI...");
+        mMsgProcess.requestMirrorPermission();
+    }
+
+
+    @Override
+    protected void onDestroy() {
+        Utils.setLogSink(null);
+        closeSessionLog();
+        super.onDestroy();
+        mContext.unregisterReceiver(mUsbReceiver);
+    }
+
+
+    private void openAccessory(UsbAccessory accessory) {
+        log("openAccessory");
+        uiLog("Opening CarLife USB accessory...");
+        if (accessory == null) {
+            log("openAccessory skipped: accessory is null");
+            return;
+        }
+        try {
+            String accessorySummary = "manufacturer=" + accessory.getManufacturer()
+                    + ", model=" + accessory.getModel()
+                    + ", description=" + accessory.getDescription()
+                    + ", version=" + accessory.getVersion()
+                    + ", uri=" + accessory.getUri()
+                    + ", serial=" + accessory.getSerial();
+            log("USB accessory metadata: " + accessorySummary);
+            uiLog("Accessory: " + accessory.getManufacturer() + " / " + accessory.getModel()
+                    + " / v" + accessory.getVersion());
+            mFileDescriptor = mUsbManager.openAccessory(accessory);
+        } catch (SecurityException e) {
+            log("openAccessory permission error: " + e.getMessage());
+            return;
+        }
+
+        if (mFileDescriptor != null) {
+            FileDescriptor fd = mFileDescriptor.getFileDescriptor();
+            log("now usb fd" + fd);
+            if (fd != null) {
+                FileInputStream mInputStream = new FileInputStream(fd);
+                log("accessory opened DataTranPrepared");
+                FileOutputStream mOutputStream = new FileOutputStream(fd);
+
+                mMsgProcess.startProjection(mInputStream, mOutputStream);
+                uiLog("USB opened. CarLife session started.");
+                uiLog("Handshake first; native Car UI starts on VIDEO_START.");
+                mWakeLock.acquire();//保持屏幕唤醒
+
+
+            }
+
+            log("accessory opened");
+        } else {
+            log("accessory open fail");
+            uiLog("USB open failed.");
+        }
+    }
+
+    private void uiLog(final String text) {
+        appendSessionLog("UI", text);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mLog != null) {
+                    mLog.setText(text + "\n" + mLog.getText());
+                }
+            }
+        });
+    }
+
+    private void startSessionLog() {
+        try {
+            File dir = new File(getExternalFilesDir(null), "logs");
+            if (!dir.exists() && !dir.mkdirs()) {
+                return;
+            }
+            String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            sessionLogFile = new File(dir, "ens1_carlife_" + stamp + ".log");
+            sessionLogWriter = new BufferedWriter(new FileWriter(sessionLogFile, true));
+            appendSessionLog("SYS", "=== eNS1 CarLife diagnostic session ===");
+            appendSessionLog("SYS", "Android=" + Build.VERSION.RELEASE + " SDK=" + Build.VERSION.SDK_INT);
+            appendSessionLog("SYS", "Device=" + Build.MANUFACTURER + " " + Build.MODEL);
+            appendSessionLog("SYS", "Package=" + getPackageName());
+        } catch (Exception e) {
+            sessionLogWriter = null;
+            sessionLogFile = null;
+        }
+    }
+
+    private void appendSessionLog(String source, String line) {
+        synchronized (logFileLock) {
+            if (sessionLogWriter == null) {
+                return;
+            }
+            try {
+                sessionLogWriter.write(logTimeFormat.format(new Date()));
+                sessionLogWriter.write(" [");
+                sessionLogWriter.write(source);
+                sessionLogWriter.write("] ");
+                sessionLogWriter.write(line == null ? "null" : line);
+                sessionLogWriter.newLine();
+                sessionLogWriter.flush();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private void closeSessionLog() {
+        synchronized (logFileLock) {
+            if (sessionLogWriter != null) {
+                try {
+                    sessionLogWriter.flush();
+                    sessionLogWriter.close();
+                } catch (IOException ignored) {
+                }
+                sessionLogWriter = null;
+            }
+        }
+    }
+
+    private File findLatestPreviousLog() {
+        File dir = new File(getExternalFilesDir(null), "logs");
+        File[] files = dir.listFiles();
+        if (files == null) return null;
+        File latest = null;
+        for (File f : files) {
+            if (f.isFile() && f.getName().startsWith("ens1_carlife_") && f.getName().endsWith(".log")
+                    && (latest == null || f.lastModified() > latest.lastModified())) latest = f;
+        }
+        return latest;
+    }
+
+    private void shareSessionLog() {
+        if (sessionLogWriter != null) {
+            synchronized (logFileLock) {
+                try { sessionLogWriter.flush(); } catch (IOException ignored) {}
+            }
+        }
+        shareLogFile(sessionLogFile, "current");
+    }
+
+    private void shareLogFile(File file, String label) {
+        if (file == null || !file.exists()) {
+            uiLog(label + " log file unavailable");
+            return;
+        }
+        synchronized (logFileLock) {
+            if (sessionLogWriter != null) {
+                try {
+                    sessionLogWriter.flush();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", file);
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_STREAM, uri);
+            share.putExtra(Intent.EXTRA_SUBJECT, "eNS1 CarLife " + label + " diagnostic log");
+            share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, "Send CarLife log"));
+        } catch (Exception e) {
+            uiLog("Share " + label + " log failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
         }
     }
 
 
+    private void checkUSBDevice() {
+        log("checkUSBDevice");
+        UsbAccessory[] accessories = mUsbManager.getAccessoryList();
+
+        if (accessories == null) {
+            log("accessories list is null");
+            uiLog("Waiting for Honda CarLife USB...");
+            return;
+        }
+
+        log("accessories length " + accessories.length);
+
+        UsbAccessory accessory = accessories[0];
+        if (accessory != null) {
+            log("accessories not null");
+            if (mUsbManager.hasPermission(accessory)) {
+
+                mUsbAccessory = accessory;
+                openAccessory(mUsbAccessory);
+            } else {
+                log("accessories null per");
+                int pendingFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0;
+                PendingIntent mPermissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION), pendingFlags);
+                mUsbManager.requestPermission(accessory, mPermissionIntent);
+            }
+        } else {
+            log("accessories null");
+        }
+    }
+
+
+    private void checkPermission() {
+        if (Build.VERSION.SDK_INT < 21) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(mContext);
+//            builder.setTitle("权限申请");
+            builder.setMessage("应用需要android 5.1 版本以上运行");
+//            builder.setPositiveButton("退出", new DialogInterface.OnClickListener() {
+//                @Override
+//                public void onClick(DialogInterface dialog, int which) {
+//                    finish();
+//                }
+//            });
+            builder.setNegativeButton("退出", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                }
+            });
+
+            builder.setCancelable(false);
+            builder.show();
+        }
+
+        if (Build.VERSION.SDK_INT < 24) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(mContext);
+//            builder.setTitle("权限申请");
+            builder.setMessage("车机反控功能需要android 7.0版本及以上");
+            builder.setPositiveButton("了解", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+
+                }
+            });
+            builder.setNegativeButton("退出", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                }
+            });
+
+            builder.setCancelable(false);
+            builder.show();
+        }
+    }
+
+}
