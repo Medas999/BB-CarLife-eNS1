@@ -26,15 +26,15 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Set v4.2 package version
+      - name: Set v4.3 package version
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/build.gradle")
           s=p.read_text()
           import re
-          s=re.sub(r'versionCode\\s+\\d+', 'versionCode 420', s)
-          s=re.sub(r'versionName\\s+"[^"]+"', 'versionName "4.2-aa-full-video"', s)
+          s=re.sub(r'versionCode\\s+\\d+', 'versionCode 430', s)
+          s=re.sub(r'versionName\\s+"[^"]+"', 'versionName "4.3-aa-full-profile"', s)
           p.write_text(s)
           PY
 
