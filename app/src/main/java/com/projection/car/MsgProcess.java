@@ -157,7 +157,13 @@ public class MsgProcess {
 
     }
 
-    public void startCarUi() {\n        if (mMediaCodecTool.isProjectionActive()) return;\n        mInfoListener.onProtocolEvent(\"Starting native Car UI renderer\");\n        mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);\n    }\n\n    public synchronized void resetUsb() {
+    public void startCarUi() {
+        if (mMediaCodecTool.isProjectionActive()) return;
+        mInfoListener.onProtocolEvent("Starting native Car UI renderer");
+        mMediaCodecTool.startCarUi(videoDataEncodeListener, mVISWidth, mVISHeight, mVideoBit, mVideoFrame);
+    }
+
+    public synchronized void resetUsb() {
         if (usbOk) {
             log("resetUsb");
             usbOk = false;
