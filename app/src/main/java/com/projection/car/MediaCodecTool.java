@@ -11,6 +11,17 @@ import android.graphics.Path;
 import android.graphics.Typeface;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.Intent;
+import android.net.Uri;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import android.util.Base64;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -50,6 +61,9 @@ public class MediaCodecTool {
     private boolean calibrated=false,calibrating=false;
     private int calStep=0;
     private final float[] calX=new float[4],calY=new float[4];
+    private static final String SPOTIFY_CLIENT_ID="ddba95bc80cd40feb35199cd08c09268";
+    private static final String SPOTIFY_REDIRECT="ens1carui://spotify/callback";
+    private volatile String spotifyStatus="Не авторизован"; private String pkceVerifier; private String oauthState;
     private HandlerThread audioThread; private Handler audioHandler; private volatile boolean playing=false; private double tonePhase=0; private long playedFrames=0;
 
     public void setContext(Context c){ appContext=c.getApplicationContext(); loadCalibration(); }
@@ -215,7 +229,7 @@ public class MediaCodecTool {
             int hit=hitTile(x,y);
             if(page==5 && x>=430 && x<=900 && y>=365 && y<=455){calibrating=true;calStep=0;pressed=-1;return;}
             if(page==5 && x>=430 && x<=900 && y>=475 && y<=550){calibrated=false;calMinX=0;calMaxX=1024;calMinY=0;calMaxY=768;if(appContext!=null)appContext.getSharedPreferences("carui_touch",0).edit().clear().apply();}
-            if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
+            if(page==3 && x>=300 && x<=760 && y>=365 && y<=520){startSpotifyLogin();}\n            if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
             if(hit>=0 && hit==pressed) page=hit+1;
             else if(page>0 && y>=540) page=0;
             pressed=-1;
@@ -239,7 +253,7 @@ public class MediaCodecTool {
         p.setTextSize(25);p.setColor(Color.WHITE);
         c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты Spotify":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
         p.setColor(withAlpha(accent[pg],70));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
-        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));if(pg==4){p.setColor(Color.rgb(20,45,70));c.drawRoundRect(new RectF(250,365,775,535),26,26,p);p.setColor(Color.WHITE);p.setTextSize(26);c.drawText("Тест аудиоканала Honda",335,410,p);p.setColor(Color.rgb(40,165,255));c.drawCircle(512,470,48,p);drawPlay(c,p,512,470,Color.WHITE);p.setTextSize(20);p.setColor(Color.rgb(180,210,230));c.drawText(playing?"Играет • "+playerTime():"Нажмите Play — тестовый звук 440 Гц",335,525,p);}else if(pg==5){c.drawText(calibrated?"Тачскрин откалиброван":"Используется стандартная калибровка",105,420,p);p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(430,365,900,455),20,20,p);p.setColor(Color.WHITE);c.drawText("Калибровать тачскрин",500,420,p);p.setColor(Color.rgb(70,90,110));c.drawRoundRect(new RectF(430,475,900,535),18,18,p);p.setColor(Color.WHITE);p.setTextSize(19);c.drawText("Сбросить калибровку",535,514,p);}else{c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);}
+        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));if(pg==3){p.setColor(Color.rgb(20,45,55));c.drawRoundRect(new RectF(250,365,775,535),26,26,p);p.setColor(Color.rgb(30,215,96));c.drawRoundRect(new RectF(300,405,760,490),42,42,p);p.setColor(Color.WHITE);p.setTextSize(25);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));c.drawText("Подключить Spotify",405,458,p);p.setTypeface(Typeface.DEFAULT);p.setTextSize(18);p.setColor(Color.rgb(190,220,205));c.drawText(spotifyStatus,335,520,p);}else if(pg==4){p.setColor(Color.rgb(20,45,70));c.drawRoundRect(new RectF(250,365,775,535),26,26,p);p.setColor(Color.WHITE);p.setTextSize(26);c.drawText("Тест аудиоканала Honda",335,410,p);p.setColor(Color.rgb(40,165,255));c.drawCircle(512,470,48,p);drawPlay(c,p,512,470,Color.WHITE);p.setTextSize(20);p.setColor(Color.rgb(180,210,230));c.drawText(playing?"Играет • "+playerTime():"Нажмите Play — тестовый звук 440 Гц",335,525,p);}else if(pg==5){c.drawText(calibrated?"Тачскрин откалиброван":"Используется стандартная калибровка",105,420,p);p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(430,365,900,455),20,20,p);p.setColor(Color.WHITE);c.drawText("Калибровать тачскрин",500,420,p);p.setColor(Color.rgb(70,90,110));c.drawRoundRect(new RectF(430,475,900,535),18,18,p);p.setColor(Color.WHITE);p.setTextSize(19);c.drawText("Сбросить калибровку",535,514,p);}else{c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);}
         p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(55,545,330,635),22,22,p);p.setColor(Color.WHITE);p.setTextSize(24);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));c.drawText("‹  На главную",90,600,p);p.setTypeface(Typeface.DEFAULT);
     }
 
@@ -250,6 +264,35 @@ public class MediaCodecTool {
         float[][] pts={{70,150},{954,150},{70,690},{954,690}};float x=pts[Math.min(calStep,3)][0],y=pts[Math.min(calStep,3)][1];
         p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5);p.setColor(Color.rgb(40,190,255));c.drawCircle(x,y,30,p);c.drawLine(x-45,y,x+45,y,p);c.drawLine(x,y-45,x,y+45,p);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,7,p);
         p.setTextSize(19);p.setTypeface(Typeface.DEFAULT);p.setColor(Color.rgb(160,195,220));c.drawText("После 4 точек координаты сохранятся автоматически",512,735,p);p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private String b64url(byte[] b){return Base64.encodeToString(b,Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING);}
+    private void startSpotifyLogin(){
+        try{
+            byte[] rnd=new byte[48];new SecureRandom().nextBytes(rnd);pkceVerifier=b64url(rnd);
+            oauthState=Long.toHexString(new SecureRandom().nextLong());
+            String challenge=b64url(MessageDigest.getInstance("SHA-256").digest(pkceVerifier.getBytes("US-ASCII")));
+            String scopes="user-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private user-library-read";
+            String url="https://accounts.spotify.com/authorize?client_id="+SPOTIFY_CLIENT_ID+"&response_type=code&redirect_uri="+URLEncoder.encode(SPOTIFY_REDIRECT,"UTF-8")+"&code_challenge_method=S256&code_challenge="+challenge+"&state="+oauthState+"&scope="+URLEncoder.encode(scopes,"UTF-8");
+            spotifyStatus="Откройте авторизацию на телефоне";
+            Intent in=new Intent(Intent.ACTION_VIEW,Uri.parse(url));in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);appContext.startActivity(in);
+            log("SPOTIFY OAuth launched");
+        }catch(Throwable t){spotifyStatus="Ошибка OAuth";log("SPOTIFY OAuth error "+t);}
+    }
+    public void handleSpotifyCallback(Uri uri){
+        if(uri==null)return;String code=uri.getQueryParameter("code"),state=uri.getQueryParameter("state"),err=uri.getQueryParameter("error");
+        if(err!=null){spotifyStatus="Доступ отклонён";return;} if(code==null||oauthState==null||!oauthState.equals(state)){spotifyStatus="Ошибка callback/state";return;}
+        final String c=code,v=pkceVerifier;spotifyStatus="Получение токена...";
+        new Thread(()->exchangeSpotifyToken(c,v),"spotify-token").start();
+    }
+    private void exchangeSpotifyToken(String code,String verifier){
+        HttpURLConnection con=null;try{
+            URL u=new URL("https://accounts.spotify.com/api/token");con=(HttpURLConnection)u.openConnection();con.setRequestMethod("POST");con.setDoOutput(true);con.setRequestProperty("Content-Type","application/x-www-form-urlencoded");
+            String body="client_id="+URLEncoder.encode(SPOTIFY_CLIENT_ID,"UTF-8")+"&grant_type=authorization_code&code="+URLEncoder.encode(code,"UTF-8")+"&redirect_uri="+URLEncoder.encode(SPOTIFY_REDIRECT,"UTF-8")+"&code_verifier="+URLEncoder.encode(verifier,"UTF-8");
+            try(OutputStream os=con.getOutputStream()){os.write(body.getBytes("UTF-8"));}
+            int rc=con.getResponseCode();BufferedReader br=new BufferedReader(new InputStreamReader(rc<400?con.getInputStream():con.getErrorStream()));StringBuilder out=new StringBuilder();String line;while((line=br.readLine())!=null)out.append(line);br.close();
+            String json=out.toString(); if(rc==200&&json.contains("\"access_token\"")){appContext.getSharedPreferences("spotify",0).edit().putString("token_json",json).apply();spotifyStatus="Spotify подключён";log("SPOTIFY OAuth success");}else{spotifyStatus="Ошибка токена: "+rc;log("SPOTIFY token error "+rc+" "+json);}
+        }catch(Throwable t){spotifyStatus="Ошибка сети";log("SPOTIFY token exception "+t);}finally{if(con!=null)con.disconnect();}
     }
 
     private void startAudioEngine(){
