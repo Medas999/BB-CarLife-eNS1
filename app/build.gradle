@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 190
-        versionName "1.9-car-ui-stage1"
+        versionCode 200
+        versionName "2.0-visual-ui"
     }
 
     buildTypes {
