@@ -9,6 +9,8 @@ import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.graphics.Path;
 import android.graphics.Typeface;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -40,6 +42,16 @@ public class MediaCodecTool {
     private VideoDataEncodeListener listener;
     private volatile int page=0;
     private volatile int pressed=-1;
+    private Context appContext;
+    private float calMinX=0,calMaxX=1024,calMinY=0,calMaxY=768;
+    private boolean calibrated=false,calibrating=false;
+    private int calStep=0;
+    private final float[] calX=new float[4],calY=new float[4];
+
+    public void setContext(Context c){ appContext=c.getApplicationContext(); loadCalibration(); }
+
+    private void loadCalibration(){ if(appContext==null)return; SharedPreferences sp=appContext.getSharedPreferences("carui_touch",0); calibrated=sp.getBoolean("ok",false); calMinX=sp.getFloat("minX",0);calMaxX=sp.getFloat("maxX",1024);calMinY=sp.getFloat("minY",0);calMaxY=sp.getFloat("maxY",768); }
+    private void saveCalibration(){ if(appContext==null)return; appContext.getSharedPreferences("carui_touch",0).edit().putBoolean("ok",true).putFloat("minX",calMinX).putFloat("maxX",calMaxX).putFloat("minY",calMinY).putFloat("maxY",calMaxY).apply(); }
 
     public void startCarUi(VideoDataEncodeListener l, float w, float h, int frameRate, int bitRate) {
         if (active) return;
@@ -126,6 +138,7 @@ public class MediaCodecTool {
         p.setTextSize(28);p.setColor(Color.WHITE);c.drawText(time,895,59,p);
 
         String[] names={"Навигация","YouTube","Spotify","Музыка","Настройки"};
+        if(calibrating){ drawCalibration(c,p); c.restore(); return; }
         if(page>0){ drawPage(c,p,page); c.restore(); return; }
         String[] subs={"Карты • маршруты","Видео • подписки","Треки • плейлисты","Медиатека","Экран • звук"};
         int[] accents={Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
@@ -174,16 +187,34 @@ public class MediaCodecTool {
     }
 
     public void onCarTouch(int action,float rawX,float rawY){
-        float x=rawX*(1024f/Math.max(1,width)), y=rawY*(768f/Math.max(1,height));
-        // CarLife touch action: 0 down, 1 up, 2 move on the tested Honda implementation.
+        if(calibrating){
+            if(action==1){
+                calX[calStep]=rawX; calY[calStep]=rawY; calStep++;
+                if(calStep>=4){
+                    calMinX=(calX[0]+calX[2])/2f; calMaxX=(calX[1]+calX[3])/2f;
+                    calMinY=(calY[0]+calY[1])/2f; calMaxY=(calY[2]+calY[3])/2f;
+                    if(calMaxX<calMinX){float t=calMinX;calMinX=calMaxX;calMaxX=t;}
+                    if(calMaxY<calMinY){float t=calMinY;calMinY=calMaxY;calMaxY=t;}
+                    calibrated=true;calibrating=false;calStep=0;saveCalibration();page=5;
+                    log("TOUCH CAL SAVED X="+calMinX+".."+calMaxX+" Y="+calMinY+".."+calMaxY);
+                }
+            }
+            return;
+        }
+        float baseX=rawX*(1024f/Math.max(1,width)),baseY=rawY*(768f/Math.max(1,height));
+        float x=calibrated?(rawX-calMinX)*1024f/Math.max(1f,calMaxX-calMinX):baseX;
+        float y=calibrated?(rawY-calMinY)*768f/Math.max(1f,calMaxY-calMinY):baseY;
+        x=Math.max(0,Math.min(1024,x));y=Math.max(0,Math.min(768,y));
         if(action==0){ pressed=hitTile(x,y); }
         else if(action==1){
             int hit=hitTile(x,y);
+            if(page==5 && x>=430 && x<=900 && y>=365 && y<=455){calibrating=true;calStep=0;pressed=-1;return;}
+            if(page==5 && x>=430 && x<=900 && y>=475 && y<=550){calibrated=false;calMinX=0;calMaxX=1024;calMinY=0;calMaxY=768;if(appContext!=null)appContext.getSharedPreferences("carui_touch",0).edit().clear().apply();}
             if(hit>=0 && hit==pressed) page=hit+1;
-            else if(page>0 && (y>=540 || (x>=45 && x<=300 && y>=530))) page=0;
+            else if(page>0 && y>=540) page=0;
             pressed=-1;
         }
-        log("CAR UI TOUCH CAL raw="+rawX+","+rawY+" mapped="+x+","+y+" surface="+width+"x"+height+" action="+action+" tile="+pressed+" page="+page);
+        log("CAR UI TOUCH raw="+rawX+","+rawY+" mapped="+x+","+y+" calibrated="+calibrated+" action="+action+" page="+page);
     }
 
     private int hitTile(float x,float y){
@@ -202,8 +233,17 @@ public class MediaCodecTool {
         p.setTextSize(25);p.setColor(Color.WHITE);
         c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты Spotify":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
         p.setColor(withAlpha(accent[pg],70));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
-        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);
+        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));if(pg==5){c.drawText(calibrated?"Тачскрин откалиброван":"Используется стандартная калибровка",105,420,p);p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(430,365,900,455),20,20,p);p.setColor(Color.WHITE);c.drawText("Калибровать тачскрин",500,420,p);p.setColor(Color.rgb(70,90,110));c.drawRoundRect(new RectF(430,475,900,535),18,18,p);p.setColor(Color.WHITE);p.setTextSize(19);c.drawText("Сбросить калибровку",535,514,p);}else{c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);}
         p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(55,545,330,635),22,22,p);p.setColor(Color.WHITE);p.setTextSize(24);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));c.drawText("‹  На главную",90,600,p);p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private void drawCalibration(Canvas c,Paint p){
+        p.setColor(Color.argb(245,3,15,28));c.drawRect(0,86,1024,768,p);
+        String[] msg={"Нажмите точно на метку: ВЕРХНИЙ ЛЕВЫЙ","Нажмите точно на метку: ВЕРХНИЙ ПРАВЫЙ","Нажмите точно на метку: НИЖНИЙ ЛЕВЫЙ","Нажмите точно на метку: НИЖНИЙ ПРАВЫЙ"};
+        p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(28);p.setColor(Color.WHITE);c.drawText(msg[Math.min(calStep,3)],512,145,p);
+        float[][] pts={{70,150},{954,150},{70,690},{954,690}};float x=pts[Math.min(calStep,3)][0],y=pts[Math.min(calStep,3)][1];
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5);p.setColor(Color.rgb(40,190,255));c.drawCircle(x,y,30,p);c.drawLine(x-45,y,x+45,y,p);c.drawLine(x,y-45,x,y+45,p);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,7,p);
+        p.setTextSize(19);p.setTypeface(Typeface.DEFAULT);p.setColor(Color.rgb(160,195,220));c.drawText("После 4 точек координаты сохранятся автоматически",512,735,p);p.setTextAlign(Paint.Align.LEFT);
     }
 
     private int withAlpha(int color,int alpha){
