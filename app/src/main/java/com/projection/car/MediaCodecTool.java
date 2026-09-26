@@ -4,6 +4,11 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.LinearGradient;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
+import android.graphics.Path;
+import android.graphics.Typeface;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -90,30 +95,105 @@ public class MediaCodecTool {
     };
 
     private void drawHome(Canvas c){
-        int w=c.getWidth(),h=c.getHeight();
+        final float sx=c.getWidth()/1024f, sy=c.getHeight()/768f;
+        c.save(); c.scale(sx,sy);
         Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
-        c.drawColor(Color.rgb(5,15,27));
-        p.setColor(Color.rgb(10,29,48));c.drawRect(0,0,w,86,p);
-        p.setColor(Color.WHITE);p.setTextSize(32);p.setFakeBoldText(true);c.drawText("Honda e:NS1",42,54,p);
-        p.setFakeBoldText(false);p.setTextSize(22);p.setColor(Color.rgb(190,210,230));
-        c.drawText(new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date()),w-100,52,p);
+
+        // Deep blue scenic-style background with horizon glow.
+        p.setShader(new LinearGradient(0,0,1024,768,
+                new int[]{Color.rgb(3,12,25),Color.rgb(7,31,55),Color.rgb(4,18,32)},
+                new float[]{0f,.55f,1f},Shader.TileMode.CLAMP));
+        c.drawRect(0,0,1024,768,p); p.setShader(null);
+        p.setShader(new RadialGradient(520,340,520,
+                new int[]{Color.argb(120,12,105,170),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));
+        c.drawCircle(520,340,520,p); p.setShader(null);
+        // Abstract mountain silhouettes and road lights.
+        Path mt=new Path(); mt.moveTo(0,390);mt.lineTo(155,240);mt.lineTo(250,330);mt.lineTo(390,185);
+        mt.lineTo(530,345);mt.lineTo(690,220);mt.lineTo(830,345);mt.lineTo(1024,245);mt.lineTo(1024,500);mt.lineTo(0,500);mt.close();
+        p.setColor(Color.argb(150,2,15,29));c.drawPath(mt,p);
+        p.setShader(new LinearGradient(0,520,1024,610,Color.argb(100,0,160,255),Color.TRANSPARENT,Shader.TileMode.CLAMP));
+        c.drawOval(new RectF(-80,500,1120,625),p);p.setShader(null);
+
+        // Header
+        p.setColor(Color.argb(190,3,17,31));c.drawRoundRect(new RectF(24,18,1000,84),22,22,p);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(29);p.setColor(Color.WHITE);
+        c.drawText("Honda e:NS1",52,60,p);
+        p.setTypeface(Typeface.DEFAULT);p.setTextSize(18);p.setColor(Color.rgb(150,190,220));
+        c.drawText("CARLIFE  •  CONNECTED",255,58,p);
+        String time=new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date());
+        p.setTextSize(28);p.setColor(Color.WHITE);c.drawText(time,895,59,p);
 
         String[] names={"Навигация","YouTube","YouTube Music","Музыка","Настройки"};
-        int[] accents={Color.rgb(20,150,255),Color.rgb(245,45,45),Color.rgb(220,35,70),Color.rgb(125,75,245),Color.rgb(80,130,165)};
-        float gap=18, left=34, top=118, cardW=(w-left*2-gap*2)/3f, cardH=220;
+        String[] subs={"Карты • маршруты","Видео • подписки","Треки • плейлисты","Медиатека","Экран • звук"};
+        int[] accents={Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
+        float gap=18,left=30,top=106,cw=(1024-left*2-gap*2)/3f,ch=210;
         for(int i=0;i<5;i++){
-            int row=i/3,col=i%3;float x=left+col*(cardW+gap),y=top+row*(cardH+gap);
-            p.setColor(Color.rgb(12,34,55));c.drawRoundRect(new RectF(x,y,x+cardW,y+cardH),24,24,p);
-            p.setColor(accents[i]);c.drawRoundRect(new RectF(x+22,y+22,x+88,y+88),18,18,p);
-            p.setColor(Color.WHITE);p.setTextSize(26);p.setFakeBoldText(true);c.drawText(names[i],x+22,y+135,p);p.setFakeBoldText(false);
-            p.setColor(Color.rgb(145,170,195));p.setTextSize(18);
-            c.drawText(i==0?"Карты и маршруты":i==1?"Видео":i==2?"Музыка и плейлисты":i==3?"Медиатека":"Система",x+22,y+172,p);
+            int row=i/3,col=i%3;float x=left+col*(cw+gap),y=top+row*(ch+gap);
+            p.setShadowLayer(18,0,8,Color.argb(130,0,0,0));p.setColor(Color.argb(225,7,25,43));
+            c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);p.clearShadowLayer();
+            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(i==0?2.5f:1.2f);p.setColor(i==0?accents[i]:Color.argb(110,120,175,215));
+            c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);p.setStyle(Paint.Style.FILL);
+            // colored visual area
+            p.setShader(new LinearGradient(x,y,x+cw,y+112,Color.argb(210,accents[i]),Color.argb(35,accents[i]),Shader.TileMode.CLAMP));
+            c.drawRoundRect(new RectF(x+1,y+1,x+cw-1,y+112),24,24,p);p.setShader(null);
+            drawIcon(c,p,i,x+cw/2,y+55,36,Color.WHITE);
+            p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(25);p.setColor(Color.WHITE);
+            c.drawText(names[i],x+20,y+151,p);
+            p.setTypeface(Typeface.DEFAULT);p.setTextSize(16);p.setColor(Color.rgb(165,192,214));c.drawText(subs[i],x+20,y+180,p);
+            p.setTextSize(34);p.setColor(Color.rgb(205,225,240));c.drawText("›",x+cw-34,y+177,p);
         }
-        float barY=h-94;p.setColor(Color.rgb(8,25,42));c.drawRect(0,barY,w,h,p);
+
+        // Now-playing card fills sixth tile.
+        float x=left+2*(cw+gap),y=top+ch+gap;
+        p.setColor(Color.argb(225,7,25,43));c.drawRoundRect(new RectF(x,y,x+cw,y+ch),25,25,p);
+        p.setShader(new LinearGradient(x,y,x+cw,y+90,Color.rgb(20,65,105),Color.rgb(9,30,50),Shader.TileMode.CLAMP));
+        c.drawRoundRect(new RectF(x+1,y+1,x+cw-1,y+95),24,24,p);p.setShader(null);
+        drawIcon(c,p,5,x+54,y+48,28,Color.rgb(70,190,255));
+        p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(22);p.setColor(Color.WHITE);c.drawText("Сейчас играет",x+96,y+45,p);
+        p.setTypeface(Typeface.DEFAULT);p.setTextSize(16);p.setColor(Color.rgb(155,185,210));c.drawText("Музыка не выбрана",x+20,y+126,p);
+        // player controls
+        p.setColor(Color.rgb(40,165,255));c.drawCircle(x+cw/2,y+165,27,p);drawPlay(c,p,x+cw/2,y+165,Color.WHITE);
+        p.setColor(Color.rgb(120,155,180));c.drawRect(x+24,y+199,x+cw-24,y+203,p);
+        p.setColor(Color.rgb(40,180,255));c.drawRect(x+24,y+199,x+104,y+203,p);
+
+        // Bottom dock
+        float by=672;p.setColor(Color.argb(238,3,17,31));c.drawRoundRect(new RectF(22,by,1002,756),24,24,p);
         String[] dock={"Главная","Навигация","YouTube","Музыка","Настройки"};
-        for(int i=0;i<dock.length;i++){
-            float x=35+i*(w-70)/5f;p.setTextSize(18);p.setColor(i==0?Color.rgb(45,170,255):Color.rgb(180,200,220));c.drawText(dock[i],x,barY+56,p);
+        int[] ids={6,0,1,3,4};
+        for(int i=0;i<5;i++){
+            float cx=115+i*198;
+            if(i==0){p.setColor(Color.argb(80,20,155,255));c.drawRoundRect(new RectF(cx-82,by+8,cx+82,by+76),18,18,p);}
+            drawIcon(c,p,ids[i],cx,by+31,19,i==0?Color.rgb(70,190,255):Color.rgb(210,225,238));
+            p.setTextAlign(Paint.Align.CENTER);p.setTextSize(14);p.setTypeface(Typeface.DEFAULT);p.setColor(i==0?Color.rgb(80,195,255):Color.rgb(195,215,230));
+            c.drawText(dock[i],cx,by+66,p);p.setTextAlign(Paint.Align.LEFT);
         }
+        c.restore();
+    }
+
+    private void drawIcon(Canvas c,Paint p,int type,float cx,float cy,float r,int color){
+        p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(4,r*.14f));p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
+        Path q=new Path();
+        if(type==0){ // navigation arrow
+            q.moveTo(cx,cy-r);q.lineTo(cx+r*.72f,cy+r);q.lineTo(cx,cy+r*.55f);q.lineTo(cx-r*.72f,cy+r);q.close();c.drawPath(q,p);
+        }else if(type==1){ // YouTube
+            p.setStyle(Paint.Style.FILL);c.drawRoundRect(new RectF(cx-r,cy-r*.65f,cx+r,cy+r*.65f),r*.28f,r*.28f,p);
+            p.setColor(Color.rgb(245,30,45));q.moveTo(cx-r*.2f,cy-r*.36f);q.lineTo(cx+r*.45f,cy);q.lineTo(cx-r*.2f,cy+r*.36f);q.close();c.drawPath(q,p);
+        }else if(type==2){ // music play ring
+            c.drawCircle(cx,cy,r*.82f,p);p.setStyle(Paint.Style.FILL);q.moveTo(cx-r*.18f,cy-r*.36f);q.lineTo(cx+r*.45f,cy);q.lineTo(cx-r*.18f,cy+r*.36f);q.close();c.drawPath(q,p);
+        }else if(type==3||type==5){ // note
+            c.drawLine(cx+r*.15f,cy-r*.72f,cx+r*.15f,cy+r*.38f,p);c.drawLine(cx+r*.15f,cy-r*.72f,cx+r*.7f,cy-r*.86f,p);
+            p.setStyle(Paint.Style.FILL);c.drawCircle(cx-r*.15f,cy+r*.52f,r*.34f,p);c.drawCircle(cx+r*.55f,cy+r*.32f,r*.28f,p);
+        }else if(type==4){ // gear-ish settings
+            c.drawCircle(cx,cy,r*.62f,p);c.drawCircle(cx,cy,r*.2f,p);
+            for(int i=0;i<8;i++){double a=i*Math.PI/4;float x1=cx+(float)Math.cos(a)*r*.72f,y1=cy+(float)Math.sin(a)*r*.72f;float x2=cx+(float)Math.cos(a)*r,y2=cy+(float)Math.sin(a)*r;c.drawLine(x1,y1,x2,y2,p);}
+        }else{ // home
+            q.moveTo(cx-r*.85f,cy);q.lineTo(cx,cy-r*.72f);q.lineTo(cx+r*.85f,cy);q.moveTo(cx-r*.58f,cy-r*.05f);q.lineTo(cx-r*.58f,cy+r*.72f);q.lineTo(cx+r*.58f,cy+r*.72f);q.lineTo(cx+r*.58f,cy-r*.05f);c.drawPath(q,p);
+        }
+        p.setStyle(Paint.Style.FILL);p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    private void drawPlay(Canvas c,Paint p,float cx,float cy,int color){
+        p.setColor(color);Path q=new Path();q.moveTo(cx-7,cy-12);q.lineTo(cx+12,cy);q.lineTo(cx-7,cy+12);q.close();c.drawPath(q,p);
     }
 
     public boolean isProjectionActive(){return active;}
