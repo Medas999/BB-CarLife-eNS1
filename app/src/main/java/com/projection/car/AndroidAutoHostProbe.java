@@ -11,10 +11,10 @@ import static com.projection.car.Utils.log;
 public final class AndroidAutoHostProbe {
  public interface Listener { void onResult(boolean ok,String message); }
  private static volatile Socket socket; private static volatile boolean running;
- private static final byte[] VERSION_11={0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x01};
+ private static final byte[] VERSION_12={0x00,0x03,0x00,0x06,0x00,0x01,0x00,0x01,0x00,0x02};
 
  public static synchronized void startSession(Listener l){
-  if(running){log("AA_V38 start ignored: session already active");return;}
+  if(running){log("AA_V39 start ignored: session already active");return;}
   running=true; new Thread(()->run(l),"aa-v38-single").start();
  }
  public static synchronized void stopSession(){running=false;try{if(socket!=null)socket.close();}catch(Throwable ignored){}socket=null;}
@@ -29,7 +29,7 @@ public final class AndroidAutoHostProbe {
    s.setTcpNoDelay(true); s.setKeepAlive(true); s.setSoTimeout(500);
    log("AA_V38 CONNECTED ms="+(System.currentTimeMillis()-t)+" local="+s.getLocalAddress()+":"+s.getLocalPort()+" remote="+s.getRemoteSocketAddress());
    InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
-   log("AA_V38 TX VERSION_REQUEST requested=1.1 bytes=8 hex="+hex(VERSION_11,64));
+   log("AA_V38 TX VERSION_REQUEST requested=1.2 framedBytes=10 hex="+hex(VERSION_12,64));
    out.write(VERSION_11); out.flush();
 
    ByteArrayOutputStream rx=new ByteArrayOutputStream(); byte[] b=new byte[4096];
