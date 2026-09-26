@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 100
-        versionName "1.0-echo-token"
+        versionCode 110
+        versionName "1.1-pv1001-probe"
     }
 
     buildTypes {
