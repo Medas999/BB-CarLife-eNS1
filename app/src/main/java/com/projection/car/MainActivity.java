@@ -231,14 +231,13 @@ public class MainActivity extends AppCompatActivity {
         AndroidAutoHostProbe.probe((ok,msg) -> runOnUiThread(() -> uiLog((ok?"AA BRIDGE READY: ":"AA BRIDGE: ")+msg)));
 
     }
-    }
 
     private void requestMirror() {
         if (mMsgProcess == null) {
             uiLog("Mirror unavailable: CarLife engine not ready");
             return;
         }
-        uiLog("Starting native Car UI...");
+        uiLog("Starting AA bridge placeholder...");
         mMsgProcess.requestMirrorPermission();
     }
 
