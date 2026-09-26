@@ -12,7 +12,7 @@ android {
         minSdk 23
         targetSdk 28
         versionCode 332
-        versionName "3.3.2-aa-openhu-frame"
+        versionName "3.4-aa-raw-gal"
     }
 
     buildTypes {
