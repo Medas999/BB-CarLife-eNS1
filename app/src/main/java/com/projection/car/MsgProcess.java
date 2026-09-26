@@ -166,6 +166,7 @@ public class MsgProcess {
 
     public void requestMirrorPermission() { startCarUi(); }
     public boolean mediaPermissionOk(Activity activity, int resultCode, Intent data) { return mMediaCodecTool.isProjectionActive(); }
+    public void handleSpotifyCallback(android.net.Uri uri) { mMediaCodecTool.handleSpotifyCallback(uri); }
 
     public synchronized void resetUsb() {
         if (usbOk) {
