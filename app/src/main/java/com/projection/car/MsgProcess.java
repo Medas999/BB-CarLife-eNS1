@@ -295,39 +295,32 @@ public class MsgProcess {
 
                                                 protocolProbeAttempt++;
                                                 int probe = ((protocolProbeAttempt - 1) % 3) + 1;
-                                                byte[] result;
-                                                String probeName;
+                                                CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
+                                                        CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
+                                                builder.setMatchStatus(1);
 
+                                                int txReserved;
+                                                String probeName;
                                                 if (probe == 1) {
-                                                    // Honda e:NS1 appears to use the 16-bit field as a per-session/request token.
-                                                    // First try: version payload + exact token echoed back.
-                                                    CarlifeProtocolVersionProto.CarlifeProtocolVersion.Builder builder =
-                                                            CarlifeProtocolVersionProto.CarlifeProtocolVersion.newBuilder();
-                                                    builder.setMajorVersion(huProtocolMajor);
-                                                    builder.setMinorVersion(huMinor);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "A echo-token VERSION";
+                                                    // Baidu V2 defines MSG_CMD_PROTOCOL_VERSION = 1001 and exposes it
+                                                    // as carlifeProtocolVersion in VERSION_MATCH_STATUS.
+                                                    builder.setCarlifeProtocolVersion(1001);
+                                                    txReserved = 0;
+                                                    probeName = "A status+PV1001 r0";
                                                 } else if (probe == 2) {
-                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                    builder.setMatchStatus(1);
-                                                    builder.setCarlifeProtocolVersion(huProtocolMajor);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "B echo-token STATUS+V";
+                                                    builder.setCarlifeProtocolVersion(1001);
+                                                    txReserved = 2; // legacy MSG_CMD_TYPE_RESPONSE
+                                                    probeName = "B status+PV1001 r2";
                                                 } else {
-                                                    CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.Builder builder =
-                                                            CarlifeProtocolVersionMatchStatusProto.CarlifeProtocolVersionMatchStatus.newBuilder();
-                                                    builder.setMatchStatus(1);
-                                                    result = builder.build().toByteArray();
-                                                    probeName = "C echo-token STATUS";
+                                                    txReserved = 2;
+                                                    probeName = "C legacy-status r2";
                                                 }
 
-                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, innerReserved);
-                                                log("protocol probe " + probeName + " token=" + innerReserved + " " + Arrays.toString(inner));
-                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " token=" + innerReserved +
-                                                        " payload=" + result.length);
+                                                byte[] result = builder.build().toByteArray();
+                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, txReserved);
+                                                log("protocol probe " + probeName + " " + Arrays.toString(inner));
+                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " payload=" + result.length);
                                                 Message tx = mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, inner);
-                                                // Official Baidu AOA transport writes outer header and body as separate USB transfers.
                                                 tx.arg1 = 0;
                                                 tx.sendToTarget();
                                             }
