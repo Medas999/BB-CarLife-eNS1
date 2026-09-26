@@ -39,11 +39,11 @@ public final class AndroidAutoHostProbe {
             s.setTcpNoDelay(true); s.setSoTimeout(5000);
             InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
             log("AA_BRIDGE CONNECTED 127.0.0.1:5277 ms="+(System.currentTimeMillis()-t));
-            if(listener!=null)listener.onResult(true,"AA connected; starting AAP v1.1");
+            if(listener!=null)listener.onResult(true,"AA connected; starting AAP v1.2");
 
             // AAP transport header: channel=0, FIRST|LAST=0x03, payload length=6.
             // Payload: VERSION_REQUEST(0x0001), major=1, minor=1.
-            byte[] versionRequest=new byte[]{0x00,0x00, 0x00,0x01,0x00,0x01,0x00,0x01};
+            byte[] versionRequest=new byte[]{0x00,0x03,0x00,0x06, 0x00,0x01,0x00,0x01,0x00,0x02};
             tx(out,"VERSION_REQUEST",versionRequest);
 
             while(running){
