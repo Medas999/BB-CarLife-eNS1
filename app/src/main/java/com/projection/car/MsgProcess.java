@@ -207,11 +207,27 @@ public class MsgProcess {
                 headmsg[3] = VIDEO;
                 intToBytes2(carLifeMsg.length, headmsg, 4);//carlifemsg len
                 CarMsg carMsg = new CarMsg(headmsg, carLifeMsg);
+                // Real-time mirroring: never let stale video frames accumulate.
+                mUsbWriteHandler.removeMessages(MSG_WRITE_VIDEO);
                 mUsbWriteHandler.obtainMessage(MSG_WRITE_VIDEO, carMsg).sendToTarget();
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
+        }
+
+        @Override
+        public void onAudioData(byte[] pcm) {
+            if (!usbOk || !huVideoStarted || pcm == null || pcm.length == 0) return;
+            try {
+                byte[] carLifeMsg = exportVideoMsg(MSG_MEDIA_DATA, pcm);
+                byte[] headmsg = new byte[8];
+                headmsg[3] = MEDIA;
+                intToBytes2(carLifeMsg.length, headmsg, 4);
+                mUsbWriteHandler.obtainMessage(MSG_WRITE_AUDIO, new CarMsg(headmsg, carLifeMsg)).sendToTarget();
+            } catch (Throwable t) {
+                log("AUDIO QUEUE ERROR: " + t);
+            }
         }
     };
 
@@ -775,12 +791,16 @@ public class MsgProcess {
                             //log("write audio or video ..................." + msg.what);
                             CarMsg carMsg = (CarMsg) msg.obj;
                             long txStarted = System.nanoTime();
-                            log("VIDEO USB TX #" + videoTxCount + " outerBytes=" + carMsg.head.length +
-                                    " innerBytes=" + carMsg.msg.length);
+                            if (msg.what == MSG_WRITE_VIDEO) {
+                                log("VIDEO USB TX #" + videoTxCount + " outerBytes=" + carMsg.head.length +
+                                        " innerBytes=" + carMsg.msg.length);
+                            }
                             mOutputStream.write(carMsg.head);
                             mOutputStream.write(carMsg.msg);
-                            log("VIDEO USB TX DONE #" + videoTxCount + " elapsedUs=" +
-                                    ((System.nanoTime() - txStarted) / 1000L));
+                            if (msg.what == MSG_WRITE_VIDEO) {
+                                log("VIDEO USB TX DONE #" + videoTxCount + " elapsedUs=" +
+                                        ((System.nanoTime() - txStarted) / 1000L));
+                            }
                         }
                         break;
                     }
