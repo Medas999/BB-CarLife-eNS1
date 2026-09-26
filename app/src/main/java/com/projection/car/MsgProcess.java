@@ -250,7 +250,7 @@ public class MsgProcess {
     }
 
     private void genarateGesture(int type, float g_x, float g_y) {
-        log("Touch received from HU (disabled in handshake-only build): type=" + type + ", x=" + g_x + ", y=" + g_y);
+        log("Touch received from HU: type=" + type + ", x=" + g_x + ", y=" + g_y);\n        mMediaCodecTool.onCarTouch(type, g_x, g_y);
     }
 
     private int readFully(FileInputStream in, byte[] buffer, int length) throws IOException {
