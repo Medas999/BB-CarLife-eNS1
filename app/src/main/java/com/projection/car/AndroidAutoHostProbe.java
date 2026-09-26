@@ -43,7 +43,7 @@ public final class AndroidAutoHostProbe {
 
             // AAP transport header: channel=0, FIRST|LAST=0x03, payload length=6.
             // Payload: VERSION_REQUEST(0x0001), major=1, minor=1.
-            byte[] versionRequest=new byte[]{0x00,0x03,0x00,0x06, 0x00,0x01,0x00,0x01,0x00,0x01};
+            byte[] versionRequest=new byte[]{0x00,0x00, 0x00,0x01,0x00,0x01,0x00,0x01};
             tx(out,"VERSION_REQUEST",versionRequest);
 
             while(running){
