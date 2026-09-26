@@ -334,26 +334,6 @@ public class MsgProcess {
         }
     }
 
-    private void sendPhoneV2PostStatisticsFlow() throws IOException {
-        if (postStatisticsFlowSent) {
-            return;
-        }
-        postStatisticsFlowSent = true;
-
-        // Exact sequence used by the reference Android-phone CarLife client after STATISTIC_INFO.
-        sendCmdDirect(MSG_CMD_FOREGROUND, null);
-        sendCmdDirect(MSG_CMD_SCREEN_ON, null);
-        sendCmdDirect(MSG_CMD_MD_AUTHEN_RESULT, new byte[] {0x08, 0x01});
-        if (!carDataSubscribeRequested) {
-            sendCmdDirect(MSG_CMD_CAR_DATA_SUBSCRIBE_REQ, null);
-            carDataSubscribeRequested = true;
-        }
-        sendCmdDirect(MSG_CMD_MD_RSA_PUBLIC_KEY_REQUEST, null);
-
-        log("TX original-phone post-stat flow: FOREGROUND, SCREEN_ON, AUTH_OK, SUBSCRIBE, RSA_REQUEST");
-        mInfoListener.onProtocolEvent("TX post-stat phone flow: foreground/screen/auth/subscribe/RSA");
-    }
-
     private void scheduleOfficialModuleStatus() {
         if (moduleStatusSent) {
             return;
