@@ -173,6 +173,7 @@ public class MsgProcess {
             usbOk = false;
             huVideoStarted = false;
             mMediaCodecTool.stopProjection();
+            AndroidAutoHostProbe.stopSession();
             mUsbWriteHandler.removeCallbacksAndMessages(null);
         }
 
@@ -568,7 +569,8 @@ public class MsgProcess {
                                             break;
                                             case MSG_CMD_VIDEO_ENCODER_START: {
                                                 huVideoStarted = true;
-                                                mInfoListener.onProtocolEvent("HU requested video start -> H.264 enabled");
+                                                mInfoListener.onProtocolEvent("HU requested video start -> starting Android Auto bridge");
+                                                AndroidAutoHostProbe.startSession((ok,msg) -> mInfoListener.onProtocolEvent((ok ? "AA: " : "AA ERROR: ") + msg));
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
