@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v1.1 PV1001 probe ready");
+        uiLog("eNS1 Mirror Test v1.2 FAST official-v2 ready");
         uiLog("Log file: " + (sessionLogFile == null ? "unavailable" : sessionLogFile.getName()));
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
@@ -252,6 +252,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
+            String accessorySummary = "manufacturer=" + accessory.getManufacturer()
+                    + ", model=" + accessory.getModel()
+                    + ", description=" + accessory.getDescription()
+                    + ", version=" + accessory.getVersion()
+                    + ", uri=" + accessory.getUri()
+                    + ", serial=" + accessory.getSerial();
+            log("USB accessory metadata: " + accessorySummary);
+            uiLog("Accessory: " + accessory.getManufacturer() + " / " + accessory.getModel()
+                    + " / v" + accessory.getVersion());
             mFileDescriptor = mUsbManager.openAccessory(accessory);
         } catch (SecurityException e) {
             log("openAccessory permission error: " + e.getMessage());
