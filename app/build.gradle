@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 330
-        versionName "3.3-aa-aap-logger"
+        versionCode 331
+        versionName "3.3.1-aa-version-fix"
     }
 
     buildTypes {
