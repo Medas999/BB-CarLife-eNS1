@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 160
-        versionName "1.6-crash-trace"
+        versionCode 170
+        versionName "1.7-previous-log"
     }
 
     buildTypes {
