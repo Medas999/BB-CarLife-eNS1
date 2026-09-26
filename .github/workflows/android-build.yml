@@ -26,41 +26,16 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Apply v4.1 TLS pending-buffer fix
+      - name: Set v4.2 package version
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path("app/src/main/java/com/projection/car/AndroidAutoHostProbe.java")
+          p=Path("app/build.gradle")
           s=p.read_text()
-          a=s.index("    if(hs==SSLEngineResult.HandshakeStatus.NEED_UNWRAP){")
-          b=s.index("    if(hs==SSLEngineResult.HandshakeStatus.FINISHED", a)
-          new='''    if(hs==SSLEngineResult.HandshakeStatus.NEED_UNWRAP){
-             if(pending.size()==0){
-              AapFrame f=readFrame6(in);
-              if(f.type!=3) throw new IOException("expected TLS type=3 got="+f.type);
-              log("AA_V41 TLS RX frame bytes="+f.payload.length+" head="+hex(f.payload,24));
-              pending.write(f.payload);
-             }
-             while(pending.size()>0 && eng.getHandshakeStatus()==SSLEngineResult.HandshakeStatus.NEED_UNWRAP){
-              byte[] all=pending.toByteArray(); ByteBuffer net=ByteBuffer.wrap(all); appIn.clear();
-              SSLEngineResult rr=eng.unwrap(net,appIn);
-              int consumed=rr.bytesConsumed();
-              pending.reset(); if(consumed<all.length)pending.write(all,consumed,all.length-consumed);
-              log("AA_V41 TLS UNWRAP status="+rr.getStatus()+" hs="+rr.getHandshakeStatus()+" consumed="+consumed+" remain="+pending.size());
-              if(rr.getStatus()==SSLEngineResult.Status.BUFFER_UNDERFLOW) break;
-              if(rr.getStatus()!=SSLEngineResult.Status.OK) throw new SSLException("unwrap "+rr.getStatus());
-              if(rr.getHandshakeStatus()==SSLEngineResult.HandshakeStatus.NEED_TASK){Runnable task;while((task=eng.getDelegatedTask())!=null)task.run();}
-              if(consumed==0 && rr.bytesProduced()==0)break;
-             }
-             continue;
-            }
-          '''
-          s=s[:a]+new+s[b:]
-          s=s.replace("AA_V40","AA_V41").replace("v4.0","v4.1").replace("aa-v40-tls","aa-v41-tls")
+          import re
+          s=re.sub(r'versionCode\\s+\\d+', 'versionCode 420', s)
+          s=re.sub(r'versionName\\s+"[^"]+"', 'versionName "4.2-aa-full-video"', s)
           p.write_text(s)
-          g=Path("app/build.gradle")
-          t=g.read_text().replace("versionCode 400","versionCode 410").replace('versionName "4.0-aa-aap17-tls"','versionName "4.1-aa-tls-drain"')
-          g.write_text(t)
           PY
 
       - name: Assemble debug APK
