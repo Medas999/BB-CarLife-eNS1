@@ -14,7 +14,7 @@ public final class AndroidAutoFullBridge {
  private static void run(Listener l){
   Socket s=new Socket();socket=s;
   try{
-   log("AA_FULL V4.4 start AAP1.7 TLS video bridge");
+   log("AA_FULL V4.5 start AAP1.7 TLS video bridge");
    s.connect(new InetSocketAddress("127.0.0.1",5277),3000);s.setTcpNoDelay(true);s.setKeepAlive(true);s.setSoTimeout(5000);
    InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();out.write(VER);out.flush();
    byte[] vr=readN(in,12);if(vr.length<12||u16(vr,4)!=2||u16(vr,10)!=0)throw new IOException("version rejected "+hex(vr,24));
@@ -64,18 +64,47 @@ public final class AndroidAutoFullBridge {
     } else if(ch==2 && type==0x8001){
       videoSession=parseFieldVarint(plain,2,1,0);log("AA_FULL RX VIDEO START session="+videoSession);
       if(l!=null)l.onStatus(true,"Android Auto video started");
-    } else if(ch==2 && (type==0 || type==1 || flags==8 || flags==10)){
-      int off=hasType?2:0;
-      if(hasType && plain.length>=off+4 && starts(plain,off+8))off+=8;
-      if(type==1){ // codec config (SPS/PPS), forward as Annex-B too
-        if(off<plain.length){byte[] d=Arrays.copyOfRange(plain,off,plain.length);l.onVideo(d);log("AA_FULL H264 CONFIG bytes="+d.length);}
-      } else if(flags==0x0B){
-        if(off<plain.length && starts(plain,off)){byte[] d=Arrays.copyOfRange(plain,off,plain.length);l.onVideo(d);frames++;if(frames<6||frames%30==0)log("AA_FULL H264 FRAME #"+frames+" bytes="+d.length+" nal="+nal(d));}
-      } else if(flags==0x09){
-        video.reset();if(off<plain.length)video.write(plain,off,plain.length-off);
-      } else if(flags==0x08){video.write(plain);}
-      else if(flags==0x0A){video.write(plain);byte[] d=video.toByteArray();if(d.length>0){l.onVideo(d);frames++;if(frames<6||frames%30==0)log("AA_FULL H264 FRAME #"+frames+" fragmented bytes="+d.length+" nal="+nal(d));}video.reset();}
-      if(videoSession!=0)sendEncrypted(e,out,2,0x0F,0x8004,ack(videoSession));
+    } else if(ch==2 && (flags==0x0B || flags==0x09 || flags==0x08 || flags==0x0A)){
+      // AAP payload framing: FIRST bit means the 2-byte message type is present.
+      // Video DATA/CONFIG first fragments may carry an 8-byte timestamp, so Annex-B begins
+      // at offset 10 (type+timestamp) or offset 2 (type only). Continuations are raw bytes.
+      if(flags==0x0B || flags==0x09){
+        if(type!=0 && type!=1){
+          log("AA_FULL VIDEO non-media first type=0x"+Integer.toHexString(type)+" flags=0x"+Integer.toHexString(flags));
+          continue;
+        }
+        int off = starts(plain,10) ? 10 : (starts(plain,2) ? 2 : -1);
+        if(off<0){
+          log("AA_FULL VIDEO HEADLESS type="+type+" flags=0x"+Integer.toHexString(flags)+" bytes="+plain.length+" hex="+hex(plain,32));
+          video.reset();
+          continue;
+        }
+        if(flags==0x0B){
+          byte[] d=Arrays.copyOfRange(plain,off,plain.length);
+          if(l!=null)l.onVideo(d);
+          if(type==1) log("AA_FULL H264 CONFIG bytes="+d.length+" nal="+nal(d));
+          else {frames++;if(frames<6||frames%30==0)log("AA_FULL H264 FRAME #"+frames+" bytes="+d.length+" nal="+nal(d));}
+          // ACK one complete media message, never each transport fragment.
+          if(videoSession!=0)sendEncrypted(e,out,2,0x0F,0x8004,ack(videoSession));
+        } else {
+          video.reset();
+          video.write(plain,off,plain.length-off);
+          log("AA_FULL H264 BEGIN type="+type+" bytes="+(plain.length-off));
+        }
+      } else if(flags==0x08){
+        if(video.size()>0) video.write(plain);
+        else log("AA_FULL VIDEO orphan middle bytes="+plain.length);
+      } else { // 0x0A last fragment
+        if(video.size()>0){
+          video.write(plain);
+          byte[] d=video.toByteArray();
+          if(l!=null)l.onVideo(d);
+          frames++;
+          if(frames<6||frames%30==0)log("AA_FULL H264 FRAME #"+frames+" fragmented bytes="+d.length+" nal="+nal(d));
+          video.reset();
+          if(videoSession!=0)sendEncrypted(e,out,2,0x0F,0x8004,ack(videoSession));
+        } else log("AA_FULL VIDEO orphan last bytes="+plain.length);
+      }
     } else if(ch==0 && type==11){ // ping
       byte[] ts=Arrays.copyOfRange(plain,2,plain.length);sendEncrypted(e,out,0,0x0B,12,ts);
     } else if(hasType && (type==9||type==15)){log("AA_FULL control type="+type);}
@@ -126,13 +155,13 @@ public final class AndroidAutoFullBridge {
   PB ac=new PB();ac.v(1,48000);ac.v(2,16);ac.v(3,2);auSink.msg(3,ac.b());auSink.v(5,1);
   auSvc.msg(3,auSink.b());r.msg(1,auSvc.b());
 
-  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge-moto-v44");r.v(6,0);
-  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.4");r.v(11,0);r.str(14,"Android Auto");
+  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge-moto-v45");r.v(6,0);
+  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.5");r.v(11,0);r.str(14,"Android Auto");
 
   // Explicit HeadUnitInfo. Vehicle type 3 = motorcycle: AA then uses the phone microphone,
   // so omitting a head-unit microphone service does not make discovery invalid.
-  PB hi=new PB();hi.str(1,"Honda");hi.str(2,"e:NS1");hi.str(3,"2026");hi.str(4,"ens1-aa-bridge-moto-v44");
-  hi.str(5,"OpenHU");hi.str(6,"eNS1 Bridge");hi.str(7,"1");hi.str(8,"4.4");hi.v(9,3);
+  PB hi=new PB();hi.str(1,"Honda");hi.str(2,"e:NS1");hi.str(3,"2026");hi.str(4,"ens1-aa-bridge-moto-v45");
+  hi.str(5,"OpenHU");hi.str(6,"eNS1 Bridge");hi.str(7,"1");hi.str(8,"4.5");hi.v(9,3);
   r.msg(17,hi.b());
   return r.b();
  }
