@@ -332,53 +332,6 @@ public class MsgProcess {
                                                 tx.sendToTarget();
                                             }
                                             break;
-                                                    case 2:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 2;
-                                                        combinedWrite = false;
-                                                        probeName = "B r2 split";
-                                                        break;
-                                                    case 3:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 1;
-                                                        combinedWrite = false;
-                                                        probeName = "C r1 split";
-                                                        break;
-                                                    case 4:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 2;
-                                                        combinedWrite = true;
-                                                        probeName = "D r2 combined";
-                                                        break;
-                                                    case 5:
-                                                        statusBuilder.setCarlifeProtocolVersion(huProtocolMajor);
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 2;
-                                                        combinedWrite = true;
-                                                        probeName = "E r2+version combined";
-                                                        break;
-                                                    case 6:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = 0;
-                                                        combinedWrite = true;
-                                                        probeName = "F r0 combined";
-                                                        break;
-                                                    default:
-                                                        result = statusBuilder.build().toByteArray();
-                                                        txReserved = innerReserved;
-                                                        combinedWrite = true;
-                                                        probeName = "G copy-r" + innerReserved + " combined";
-                                                        break;
-                                                }
-
-                                                byte[] inner = exportCMDMsg(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, result, txReserved);
-                                                log("protocol probe " + probeName + " " + Arrays.toString(inner));
-                                                mInfoListener.onProtocolEvent("TX MATCH " + probeName + " payload=" + result.length);
-                                                Message tx = mUsbWriteHandler.obtainMessage(MSG_CMD_PROTOCOL_VERSION_MATCH_STATUS, inner);
-                                                tx.arg1 = combinedWrite ? 1 : 0;
-                                                tx.sendToTarget();
-                                            }
-                                            break;
                                             case MSG_CMD_HU_INFO: {
                                                 try {
                                                     final CarlifeDeviceInfoProto.CarlifeDeviceInfo deviceInfo = CarlifeDeviceInfoProto.CarlifeDeviceInfo.parseFrom(msgdata);
