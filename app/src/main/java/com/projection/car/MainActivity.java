@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v1.3 original-phone-v2 flow ready");
+        uiLog("eNS1 Mirror Test v1.4 phone-init flow ready");
         uiLog("Log file: " + (sessionLogFile == null ? "unavailable" : sessionLogFile.getName()));
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
