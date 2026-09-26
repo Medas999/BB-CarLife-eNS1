@@ -40,6 +40,12 @@
             android:text="SHARE LOG" />
     </LinearLayout>
 
+    <Button
+        android:id="@+id/share_previous_log"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="SHARE PREVIOUS LOG" />
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
