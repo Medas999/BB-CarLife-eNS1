@@ -14,6 +14,9 @@ import android.content.SharedPreferences;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -47,6 +50,7 @@ public class MediaCodecTool {
     private boolean calibrated=false,calibrating=false;
     private int calStep=0;
     private final float[] calX=new float[4],calY=new float[4];
+    private HandlerThread audioThread; private Handler audioHandler; private volatile boolean playing=false; private double tonePhase=0; private long playedFrames=0;
 
     public void setContext(Context c){ appContext=c.getApplicationContext(); loadCalibration(); }
 
@@ -56,6 +60,7 @@ public class MediaCodecTool {
     public void startCarUi(VideoDataEncodeListener l, float w, float h, int frameRate, int bitRate) {
         if (active) return;
         listener=l; width=(int)w; height=(int)h; fps=Math.max(10, frameRate); bitrate=bitRate;
+        startAudioEngine();
         try {
             codec=MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             MediaFormat f=MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,width,height);
@@ -210,6 +215,7 @@ public class MediaCodecTool {
             int hit=hitTile(x,y);
             if(page==5 && x>=430 && x<=900 && y>=365 && y<=455){calibrating=true;calStep=0;pressed=-1;return;}
             if(page==5 && x>=430 && x<=900 && y>=475 && y<=550){calibrated=false;calMinX=0;calMaxX=1024;calMinY=0;calMaxY=768;if(appContext!=null)appContext.getSharedPreferences("carui_touch",0).edit().clear().apply();}
+            if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
             if(hit>=0 && hit==pressed) page=hit+1;
             else if(page>0 && y>=540) page=0;
             pressed=-1;
@@ -233,7 +239,7 @@ public class MediaCodecTool {
         p.setTextSize(25);p.setColor(Color.WHITE);
         c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты Spotify":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
         p.setColor(withAlpha(accent[pg],70));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
-        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));if(pg==5){c.drawText(calibrated?"Тачскрин откалиброван":"Используется стандартная калибровка",105,420,p);p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(430,365,900,455),20,20,p);p.setColor(Color.WHITE);c.drawText("Калибровать тачскрин",500,420,p);p.setColor(Color.rgb(70,90,110));c.drawRoundRect(new RectF(430,475,900,535),18,18,p);p.setColor(Color.WHITE);p.setTextSize(19);c.drawText("Сбросить калибровку",535,514,p);}else{c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);}
+        p.setTextSize(22);p.setColor(Color.rgb(205,225,238));if(pg==4){p.setColor(Color.rgb(20,45,70));c.drawRoundRect(new RectF(250,365,775,535),26,26,p);p.setColor(Color.WHITE);p.setTextSize(26);c.drawText("Тест аудиоканала Honda",335,410,p);p.setColor(Color.rgb(40,165,255));c.drawCircle(512,470,48,p);drawPlay(c,p,512,470,Color.WHITE);p.setTextSize(20);p.setColor(Color.rgb(180,210,230));c.drawText(playing?"Играет • "+playerTime():"Нажмите Play — тестовый звук 440 Гц",335,525,p);}else if(pg==5){c.drawText(calibrated?"Тачскрин откалиброван":"Используется стандартная калибровка",105,420,p);p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(430,365,900,455),20,20,p);p.setColor(Color.WHITE);c.drawText("Калибровать тачскрин",500,420,p);p.setColor(Color.rgb(70,90,110));c.drawRoundRect(new RectF(430,475,900,535),18,18,p);p.setColor(Color.WHITE);p.setTextSize(19);c.drawText("Сбросить калибровку",535,514,p);}else{c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);}
         p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(55,545,330,635),22,22,p);p.setColor(Color.WHITE);p.setTextSize(24);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));c.drawText("‹  На главную",90,600,p);p.setTypeface(Typeface.DEFAULT);
     }
 
@@ -245,6 +251,21 @@ public class MediaCodecTool {
         p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5);p.setColor(Color.rgb(40,190,255));c.drawCircle(x,y,30,p);c.drawLine(x-45,y,x+45,y,p);c.drawLine(x,y-45,x,y+45,p);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,7,p);
         p.setTextSize(19);p.setTypeface(Typeface.DEFAULT);p.setColor(Color.rgb(160,195,220));c.drawText("После 4 точек координаты сохранятся автоматически",512,735,p);p.setTextAlign(Paint.Align.LEFT);
     }
+
+    private void startAudioEngine(){
+        if(audioThread!=null)return;
+        audioThread=new HandlerThread("car-ui-audio");audioThread.start();audioHandler=new Handler(audioThread.getLooper());audioHandler.post(audioLoop);
+    }
+    private final Runnable audioLoop=new Runnable(){public void run(){
+        if(audioHandler==null)return;
+        final int frames=960; byte[] pcm=new byte[frames*4];
+        if(playing){
+            double hz=440.0; for(int i=0;i<frames;i++){short v=(short)(Math.sin(tonePhase)*7000);tonePhase+=2*Math.PI*hz/48000.0;if(tonePhase>2*Math.PI)tonePhase-=2*Math.PI;int o=i*4;pcm[o]=(byte)v;pcm[o+1]=(byte)(v>>8);pcm[o+2]=(byte)v;pcm[o+3]=(byte)(v>>8);} playedFrames+=frames;
+        }
+        if(listener!=null && playing)listener.onAudioData(pcm);
+        if(audioHandler!=null)audioHandler.postDelayed(this,20);
+    }};
+    private String playerTime(){long sec=playedFrames/48000;return String.format(Locale.getDefault(),"%d:%02d",sec/60,sec%60);}
 
     private int withAlpha(int color,int alpha){
         return (color & 0x00FFFFFF) | ((alpha & 0xFF) << 24);
@@ -281,6 +302,7 @@ public class MediaCodecTool {
         active=false;
         if(renderHandler!=null)renderHandler.removeCallbacksAndMessages(null);
         if(renderThread!=null){renderThread.quitSafely();renderThread=null;}
+        if(audioHandler!=null)audioHandler.removeCallbacksAndMessages(null);if(audioThread!=null){audioThread.quitSafely();audioThread=null;}audioHandler=null;playing=false;
         if(codec!=null){try{codec.stop();}catch(Throwable ignored){}try{codec.release();}catch(Throwable ignored){}codec=null;}
         if(inputSurface!=null){try{inputSurface.release();}catch(Throwable ignored){}inputSurface=null;}
     }
