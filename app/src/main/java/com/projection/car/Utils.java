@@ -49,9 +49,16 @@ public class Utils {
     public static final int MSG_CMD_FOREGROUND = 0x0001001B;//65563
     public static final int MSG_CMD_CARLIFE_DATA_SUBSCRIBE_DONE = 0x00010044;
 
+    // Phone-side CarLife v2 initialization flow
+    public static final int MSG_CMD_CAR_DATA_SUBSCRIBE_REQ = 0x00010031;
+    public static final int MSG_CMD_CAR_DATA_SUBSCRIBE_RSP = 0x00018032;
+
 
     public static final int MSG_CMD_MD_FEATURE_CONFIG_REQUEST = 0x00010051;//65617
     public static final int MSG_CMD_HU_FEATURE_CONFIG_RESPONSE = 0x00018052;//98386
+
+    public static final int MSG_CMD_MD_RSA_PUBLIC_KEY_REQUEST = 0x0001006A;
+    public static final int MSG_CMD_HU_RSA_PUBLIC_KEY_RESPONSE = 0x0001806B;
 
 
     // Media通道相关消息
