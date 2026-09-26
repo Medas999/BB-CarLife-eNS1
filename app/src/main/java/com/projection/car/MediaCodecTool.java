@@ -68,7 +68,7 @@ public class MediaCodecTool {
 
     public void setContext(Context c){ appContext=c.getApplicationContext(); loadCalibration(); }
 
-    private void loadCalibration(){ if(appContext==null)return; SharedPreferences sp=appContext.getSharedPreferences("carui_touch",0); calibrated=sp.getBoolean("ok",false); calMinX=sp.getFloat("minX",0);calMaxX=sp.getFloat("maxX",1024);calMinY=sp.getFloat("minY",0);calMaxY=sp.getFloat("maxY",768); }
+    private void loadCalibration(){ if(appContext==null)return; SharedPreferences sp=appContext.getSharedPreferences("carui_touch",0); calibrated=sp.getBoolean("ok",false); calMinX=sp.getFloat("minX",0);calMaxX=sp.getFloat("maxX",1024);calMinY=sp.getFloat("minY",0);calMaxY=sp.getFloat("maxY",768); SharedPreferences ss=appContext.getSharedPreferences("spotify",0); pkceVerifier=ss.getString("pkce_verifier",null);oauthState=ss.getString("oauth_state",null);if(ss.getString("token_json",null)!=null)spotifyStatus="Spotify подключён"; }
     private void saveCalibration(){ if(appContext==null)return; appContext.getSharedPreferences("carui_touch",0).edit().putBoolean("ok",true).putFloat("minX",calMinX).putFloat("maxX",calMaxX).putFloat("minY",calMinY).putFloat("maxY",calMaxY).apply(); }
 
     public void startCarUi(VideoDataEncodeListener l, float w, float h, int frameRate, int bitRate) {
@@ -272,6 +272,7 @@ public class MediaCodecTool {
         try{
             byte[] rnd=new byte[48];new SecureRandom().nextBytes(rnd);pkceVerifier=b64url(rnd);
             oauthState=Long.toHexString(new SecureRandom().nextLong());
+            appContext.getSharedPreferences("spotify",0).edit().putString("pkce_verifier",pkceVerifier).putString("oauth_state",oauthState).apply();
             String challenge=b64url(MessageDigest.getInstance("SHA-256").digest(pkceVerifier.getBytes("US-ASCII")));
             String scopes="user-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private user-library-read";
             String url="https://accounts.spotify.com/authorize?client_id="+SPOTIFY_CLIENT_ID+"&response_type=code&redirect_uri="+URLEncoder.encode(SPOTIFY_REDIRECT,"UTF-8")+"&code_challenge_method=S256&code_challenge="+challenge+"&state="+oauthState+"&scope="+URLEncoder.encode(scopes,"UTF-8");
@@ -281,7 +282,7 @@ public class MediaCodecTool {
         }catch(Throwable t){spotifyStatus="Ошибка OAuth";log("SPOTIFY OAuth error "+t);}
     }
     public void handleSpotifyCallback(Uri uri){
-        if(uri==null)return;String code=uri.getQueryParameter("code"),state=uri.getQueryParameter("state"),err=uri.getQueryParameter("error");
+        if(uri==null)return; SharedPreferences ss=appContext.getSharedPreferences("spotify",0); if(pkceVerifier==null)pkceVerifier=ss.getString("pkce_verifier",null);if(oauthState==null)oauthState=ss.getString("oauth_state",null);String code=uri.getQueryParameter("code"),state=uri.getQueryParameter("state"),err=uri.getQueryParameter("error"); log("SPOTIFY callback code="+(code!=null)+" stateMatch="+(oauthState!=null&&oauthState.equals(state))+" verifier="+(pkceVerifier!=null));
         if(err!=null){spotifyStatus="Доступ отклонён";return;} if(code==null||oauthState==null||!oauthState.equals(state)){spotifyStatus="Ошибка callback/state";return;}
         final String c=code,v=pkceVerifier;spotifyStatus="Получение токена...";
         new Thread(()->exchangeSpotifyToken(c,v),"spotify-token").start();
@@ -292,7 +293,7 @@ public class MediaCodecTool {
             String body="client_id="+URLEncoder.encode(SPOTIFY_CLIENT_ID,"UTF-8")+"&grant_type=authorization_code&code="+URLEncoder.encode(code,"UTF-8")+"&redirect_uri="+URLEncoder.encode(SPOTIFY_REDIRECT,"UTF-8")+"&code_verifier="+URLEncoder.encode(verifier,"UTF-8");
             try(OutputStream os=con.getOutputStream()){os.write(body.getBytes("UTF-8"));}
             int rc=con.getResponseCode();BufferedReader br=new BufferedReader(new InputStreamReader(rc<400?con.getInputStream():con.getErrorStream()));StringBuilder out=new StringBuilder();String line;while((line=br.readLine())!=null)out.append(line);br.close();
-            String json=out.toString(); if(rc==200&&json.contains("\"access_token\"")){appContext.getSharedPreferences("spotify",0).edit().putString("token_json",json).apply();spotifyStatus="Spotify подключён";log("SPOTIFY OAuth success");}else{spotifyStatus="Ошибка токена: "+rc;log("SPOTIFY token error "+rc+" "+json);}
+            String json=out.toString(); if(rc==200&&json.contains("\"access_token\"")){appContext.getSharedPreferences("spotify",0).edit().putString("token_json",json).remove("pkce_verifier").remove("oauth_state").apply();pkceVerifier=null;oauthState=null;spotifyStatus="Spotify подключён";log("SPOTIFY OAuth success");}else{spotifyStatus="Ошибка токена: "+rc;log("SPOTIFY token error "+rc+" "+json);}
         }catch(Throwable t){spotifyStatus="Ошибка сети";log("SPOTIFY token exception "+t);}finally{if(con!=null)con.disconnect();}
     }
 
