@@ -570,7 +570,7 @@ public class MsgProcess {
                                             case MSG_CMD_VIDEO_ENCODER_START: {
                                                 huVideoStarted = true;
                                                 mInfoListener.onProtocolEvent("HU requested video start -> starting Android Auto bridge");
-                                                AndroidAutoHostProbe.startSession((ok,msg) -> mInfoListener.onProtocolEvent((ok ? "AA: " : "AA ERROR: ") + msg));
+                                                AndroidAutoHostProbe.startSession((ok,aaStatus) -> mInfoListener.onProtocolEvent((ok ? "AA: " : "AA ERROR: ") + aaStatus));
                                                 mUsbWriteHandler.obtainMessage(MSG_CMD_VIDEO_ENCODER_START).sendToTarget();
                                             }
                                             break;
