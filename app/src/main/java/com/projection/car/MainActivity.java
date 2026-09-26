@@ -149,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         mLog = findViewById(R.id.log);
-        uiLog("eNS1 Mirror Test v1.4 phone-init flow ready");
+        uiLog("eNS1 Car UI stage 1 ready");
         uiLog("Log file: " + (sessionLogFile == null ? "unavailable" : sessionLogFile.getName()));
         bitTxt = findViewById(R.id.bit);
         frameTxt = findViewById(R.id.frame);
@@ -173,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
         mirrorBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                requestMirror();
+                mMsgProcess.startCarUi();
             }
         });
 
@@ -291,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mMsgProcess.startProjection(mInputStream, mOutputStream);
                 uiLog("USB opened. CarLife session started.");
-                uiLog("Handshake first: do not start mirror yet.");
+                uiLog("Handshake first; Car UI starts on HU VIDEO_START.");
                 mWakeLock.acquire();//保持屏幕唤醒
 
 
