@@ -39,6 +39,9 @@ public final class AndroidAutoFullBridge {
       int service=parseFieldVarint(plain,2,2,-1);
       log("AA_FULL RX CHANNEL_OPEN ch="+ch+" service="+service);
       sendEncrypted(e,out,ch, ch==0?0x0B:0x0F,8,new byte[]{8,0});
+    } else if(ch==5 && type==0x8000){
+      log("AA_FULL RX SYSTEM AUDIO MEDIA_SETUP");
+      sendEncrypted(e,out,5,0x0F,0x8003,new byte[]{8,2,16,30,24,0});
     } else if(ch==2 && type==0x8000){
       log("AA_FULL RX VIDEO MEDIA_SETUP");
       sendEncrypted(e,out,2,0x0F,0x8003,new byte[]{8,2,16,16,24,0});
@@ -86,12 +89,36 @@ public final class AndroidAutoFullBridge {
 
  // Minimal valid HU: video sink only, H264 BP, 1280x720, 30 fps + required identity.
  private static byte[] serviceDiscovery()throws IOException{
-  PB r=new PB();PB svc=new PB();svc.v(1,2);
-  PB sink=new PB();sink.v(1,3);sink.v(2,0);sink.v(5,1);
+  PB r=new PB();
+
+  // Sensor source (channel 1): driving status + night.
+  PB senSvc=new PB();senSvc.v(1,1);PB senSrc=new PB();
+  PB s1=new PB();s1.v(1,1);senSrc.msg(1,s1.b());
+  PB s2=new PB();s2.v(1,10);senSrc.msg(1,s2.b());
+  senSvc.msg(2,senSrc.b());r.msg(1,senSvc.b());
+
+  // Video sink (channel 2): H.264 BP, Android Auto's 1280x720 profile, 30 fps.
+  PB vidSvc=new PB();vidSvc.v(1,2);PB sink=new PB();sink.v(1,3);sink.v(2,0);sink.v(5,1);
   PB vc=new PB();vc.v(1,2);vc.v(2,2);vc.v(3,0);vc.v(4,0);vc.v(5,160);vc.v(8,10000);vc.v(10,3);
-  sink.msg(4,vc.b());svc.msg(3,sink.b());r.msg(1,svc.b());
-  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge");r.v(6,0);
-  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.2");r.v(11,0);r.str(14,"Android Auto");
+  sink.msg(4,vc.b());vidSvc.msg(3,sink.b());r.msg(1,vidSvc.b());
+
+  // Input source (channel 3): touchscreen matching the AA canvas.
+  PB inSvc=new PB();inSvc.v(1,3);PB input=new PB();PB touch=new PB();touch.v(1,1280);touch.v(2,720);
+  input.msg(2,touch.b());inSvc.msg(4,input.b());r.msg(1,inSvc.b());
+
+  // System audio sink (channel 5) is mandatory for a viable AA head unit profile.
+  PB auSvc=new PB();auSvc.v(1,5);PB auSink=new PB();auSink.v(1,1);auSink.v(2,2);
+  PB ac=new PB();ac.v(1,48000);ac.v(2,16);ac.v(3,2);auSink.msg(3,ac.b());auSink.v(5,1);
+  auSvc.msg(3,auSink.b());r.msg(1,auSvc.b());
+
+  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge-moto-v43");r.v(6,0);
+  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.3");r.v(11,0);r.str(14,"Android Auto");
+
+  // Explicit HeadUnitInfo. Vehicle type 3 = motorcycle: AA then uses the phone microphone,
+  // so omitting a head-unit microphone service does not make discovery invalid.
+  PB hi=new PB();hi.str(1,"Honda");hi.str(2,"e:NS1");hi.str(3,"2026");hi.str(4,"ens1-aa-bridge-moto-v43");
+  hi.str(5,"OpenHU");hi.str(6,"eNS1 Bridge");hi.str(7,"1");hi.str(8,"4.3");hi.v(9,3);
+  r.msg(17,hi.b());
   return r.b();
  }
  private static byte[] ack(int sid)throws IOException{PB p=new PB();p.v(1,sid);p.v(2,1);return p.b();}
