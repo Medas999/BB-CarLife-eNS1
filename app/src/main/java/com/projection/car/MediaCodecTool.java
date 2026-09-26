@@ -1,6 +1,8 @@
 package com.projection.car;
 
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -22,6 +24,9 @@ import java.net.URLEncoder;
 import java.io.OutputStream;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -64,7 +69,8 @@ public class MediaCodecTool {
     private static final String SPOTIFY_CLIENT_ID="ddba95bc80cd40feb35199cd08c09268";
     private static final String SPOTIFY_REDIRECT="ens1carui://spotify/callback";
     private volatile String spotifyStatus="Не авторизован"; private String pkceVerifier; private String oauthState;
-    private HandlerThread audioThread; private Handler audioHandler; private volatile boolean playing=false; private double tonePhase=0; private long playedFrames=0;
+    private HandlerThread audioThread;
+    private volatile Bitmap navMap; private volatile double navLat=50.4501,navLon=30.5234; private volatile int navZoom=12; private volatile boolean navLoading=false; private long navLastLoad=0; private final ExecutorService navExecutor=Executors.newSingleThreadExecutor(); private Handler audioHandler; private volatile boolean playing=false; private double tonePhase=0; private long playedFrames=0;
 
     public void setContext(Context c){ appContext=c.getApplicationContext(); loadCalibration(); }
 
@@ -158,6 +164,7 @@ public class MediaCodecTool {
 
         String[] names={"Навигация","YouTube","Spotify","Музыка","Настройки"};
         if(calibrating){ drawCalibration(c,p); c.restore(); return; }
+        if(page==1){drawNavigation(c,p);c.restore();return;}
         if(page>0){ drawPage(c,p,page); c.restore(); return; }
         String[] subs={"Карты • маршруты","Видео • подписки","Треки • плейлисты","Медиатека","Экран • звук"};
         int[] accents={Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
@@ -229,6 +236,7 @@ public class MediaCodecTool {
             int hit=hitTile(x,y);
             if(page==5 && x>=430 && x<=900 && y>=365 && y<=455){calibrating=true;calStep=0;pressed=-1;return;}
             if(page==5 && x>=430 && x<=900 && y>=475 && y<=550){calibrated=false;calMinX=0;calMaxX=1024;calMinY=0;calMaxY=768;if(appContext!=null)appContext.getSharedPreferences("carui_touch",0).edit().clear().apply();}
+            if(page==1 && action==1){if(x>=840&&x<=945&&y>=190&&y<=300){navZoom=Math.min(18,navZoom+1);navLastLoad=0;}else if(x>=840&&x<=945&&y>=300&&y<=405){navZoom=Math.max(4,navZoom-1);navLastLoad=0;}else if(y>=640){page=0;}}
             if(page==3 && x>=300 && x<=760 && y>=365 && y<=520){startSpotifyLogin();}
             if(page==4 && x>=350 && x<=675 && y>=390 && y<=520){playing=!playing;log("CAR UI PLAYER playing="+playing);}
             if(hit>=0 && hit==pressed) page=hit+1;
@@ -265,6 +273,26 @@ public class MediaCodecTool {
         float[][] pts={{70,150},{954,150},{70,690},{954,690}};float x=pts[Math.min(calStep,3)][0],y=pts[Math.min(calStep,3)][1];
         p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5);p.setColor(Color.rgb(40,190,255));c.drawCircle(x,y,30,p);c.drawLine(x-45,y,x+45,y,p);c.drawLine(x,y-45,x,y+45,p);p.setStyle(Paint.Style.FILL);c.drawCircle(x,y,7,p);
         p.setTextSize(19);p.setTypeface(Typeface.DEFAULT);p.setColor(Color.rgb(160,195,220));c.drawText("После 4 точек координаты сохранятся автоматически",512,735,p);p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void requestNavMap(){
+        long now=System.currentTimeMillis();if(navLoading||now-navLastLoad<1200)return;navLoading=true;navLastLoad=now;
+        final double lat=navLat,lon=navLon;final int z=navZoom;
+        navExecutor.execute(()->{try{
+            double n=Math.pow(2,z);double xt=(lon+180.0)/360.0*n;double yt=(1.0-Math.log(Math.tan(Math.toRadians(lat))+1.0/Math.cos(Math.toRadians(lat)))/Math.PI)/2.0*n;
+            int cx=(int)Math.floor(xt),cy=(int)Math.floor(yt);Bitmap big=Bitmap.createBitmap(768,768,Bitmap.Config.ARGB_8888);Canvas cc=new Canvas(big);Paint pp=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
+            for(int dx=-1;dx<=1;dx++)for(int dy=-1;dy<=1;dy++){int tx=cx+dx,ty=cy+dy;URL url=new URL("https://tile.openstreetmap.org/"+z+"/"+tx+"/"+ty+".png");HttpURLConnection h=(HttpURLConnection)url.openConnection();h.setRequestProperty("User-Agent","eNS1-CarUI/2.5 Android");h.setConnectTimeout(5000);h.setReadTimeout(7000);try(InputStream in=h.getInputStream()){Bitmap b=BitmapFactory.decodeStream(in);if(b!=null)cc.drawBitmap(b,(dx+1)*256,(dy+1)*256,pp);}finally{h.disconnect();}}
+            navMap=big;log("NAV map loaded lat="+lat+" lon="+lon+" z="+z);
+        }catch(Throwable t){log("NAV map error "+t);}finally{navLoading=false;}});
+    }
+    private void drawNavigation(Canvas c,Paint p){
+        requestNavMap();p.setColor(Color.argb(235,5,18,30));c.drawRoundRect(new RectF(30,106,994,650),28,28,p);
+        Bitmap b=navMap;if(b!=null)c.drawBitmap(b,null,new RectF(45,120,790,620),p);else{p.setColor(Color.rgb(20,45,65));c.drawRoundRect(new RectF(45,120,790,620),20,20,p);p.setColor(Color.WHITE);p.setTextSize(28);c.drawText("Загрузка карты…",280,360,p);}
+        p.setColor(Color.argb(220,4,20,34));c.drawRoundRect(new RectF(805,120,975,620),22,22,p);p.setColor(Color.WHITE);p.setTextSize(22);c.drawText("Навигация",830,165,p);
+        p.setColor(Color.rgb(40,165,255));c.drawCircle(890,245,42,p);p.setTextSize(42);p.setTextAlign(Paint.Align.CENTER);c.drawText("+",890,260,p);c.drawCircle(890,350,42,p);c.drawText("−",890,364,p);
+        p.setColor(Color.rgb(35,95,135));c.drawRoundRect(new RectF(825,425,955,490),20,20,p);p.setTextSize(18);c.setDrawFilter(null);c.drawText("Моя точка",890,465,p);p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(14);p.setColor(Color.rgb(190,205,215));c.drawText("© OpenStreetMap contributors",55,642,p);
+        p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(55,665,300,735),22,22,p);p.setColor(Color.WHITE);p.setTextSize(22);c.drawText("‹  На главную",90,710,p);
     }
 
     private String b64url(byte[] b){return Base64.encodeToString(b,Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING);}
