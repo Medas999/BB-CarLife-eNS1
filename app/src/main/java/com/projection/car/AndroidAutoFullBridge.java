@@ -14,7 +14,7 @@ public final class AndroidAutoFullBridge {
  private static void run(Listener l){
   Socket s=new Socket();socket=s;
   try{
-   log("AA_FULL V4.2 start AAP1.7 TLS video bridge");
+   log("AA_FULL V4.4 start AAP1.7 TLS video bridge");
    s.connect(new InetSocketAddress("127.0.0.1",5277),3000);s.setTcpNoDelay(true);s.setKeepAlive(true);s.setSoTimeout(5000);
    InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();out.write(VER);out.flush();
    byte[] vr=readN(in,12);if(vr.length<12||u16(vr,4)!=2||u16(vr,10)!=0)throw new IOException("version rejected "+hex(vr,24));
@@ -39,6 +39,20 @@ public final class AndroidAutoFullBridge {
       int service=parseFieldVarint(plain,2,2,-1);
       log("AA_FULL RX CHANNEL_OPEN ch="+ch+" service="+service);
       sendEncrypted(e,out,ch, ch==0?0x0B:0x0F,8,new byte[]{8,0});
+      if(ch==1){
+        // SensorBatch.driving_status { status: UNRESTRICTED }
+        sendEncrypted(e,out,1,0x0F,0x8003,new byte[]{0x6A,0x02,0x08,0x00});
+        log("AA_FULL TX DRIVING_STATUS UNRESTRICTED");
+      }
+    } else if(ch==1 && type==0x8001){
+      int sensor=parseFieldVarint(plain,2,1,-1);
+      log("AA_FULL RX SENSOR_START sensor="+sensor);
+      sendEncrypted(e,out,1,0x0F,0x8002,new byte[]{8,0});
+      if(sensor==13) sendEncrypted(e,out,1,0x0F,0x8003,new byte[]{0x6A,0x02,0x08,0x00});
+      if(sensor==10) sendEncrypted(e,out,1,0x0F,0x8003,new byte[]{0x52,0x02,0x08,0x00});
+    } else if(ch==3 && type==0x8002){
+      log("AA_FULL RX INPUT_BINDING_REQUEST");
+      sendEncrypted(e,out,3,0x0F,0x8003,new byte[]{8,0});
     } else if(ch==5 && type==0x8000){
       log("AA_FULL RX SYSTEM AUDIO MEDIA_SETUP");
       sendEncrypted(e,out,5,0x0F,0x8003,new byte[]{8,2,16,30,24,0});
@@ -65,6 +79,7 @@ public final class AndroidAutoFullBridge {
     } else if(ch==0 && type==11){ // ping
       byte[] ts=Arrays.copyOfRange(plain,2,plain.length);sendEncrypted(e,out,0,0x0B,12,ts);
     } else if(hasType && (type==9||type==15)){log("AA_FULL control type="+type);}
+    else { log("AA_FULL RX OTHER ch="+ch+" flags=0x"+Integer.toHexString(flags)+" type=0x"+Integer.toHexString(type)+" bytes="+plain.length+" hex="+hex(plain,48)); }
    }
   }catch(Throwable x){log("AA_FULL ERROR "+x.getClass().getSimpleName()+": "+x.getMessage());if(l!=null)l.onStatus(false,x.getClass().getSimpleName()+": "+x.getMessage());}
   finally{running=false;try{s.close();}catch(Exception z){}if(socket==s)socket=null;log("AA_FULL COMPLETE");}
@@ -93,7 +108,7 @@ public final class AndroidAutoFullBridge {
 
   // Sensor source (channel 1): driving status + night.
   PB senSvc=new PB();senSvc.v(1,1);PB senSrc=new PB();
-  PB s1=new PB();s1.v(1,1);senSrc.msg(1,s1.b());
+  PB s1=new PB();s1.v(1,13);senSrc.msg(1,s1.b());
   PB s2=new PB();s2.v(1,10);senSrc.msg(1,s2.b());
   senSvc.msg(2,senSrc.b());r.msg(1,senSvc.b());
 
@@ -111,13 +126,13 @@ public final class AndroidAutoFullBridge {
   PB ac=new PB();ac.v(1,48000);ac.v(2,16);ac.v(3,2);auSink.msg(3,ac.b());auSink.v(5,1);
   auSvc.msg(3,auSink.b());r.msg(1,auSvc.b());
 
-  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge-moto-v43");r.v(6,0);
-  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.3");r.v(11,0);r.str(14,"Android Auto");
+  r.str(2,"Honda");r.str(3,"e:NS1");r.str(4,"2026");r.str(5,"ens1-aa-bridge-moto-v44");r.v(6,0);
+  r.str(7,"OpenHU");r.str(8,"eNS1 Bridge");r.str(9,"1");r.str(10,"4.4");r.v(11,0);r.str(14,"Android Auto");
 
   // Explicit HeadUnitInfo. Vehicle type 3 = motorcycle: AA then uses the phone microphone,
   // so omitting a head-unit microphone service does not make discovery invalid.
-  PB hi=new PB();hi.str(1,"Honda");hi.str(2,"e:NS1");hi.str(3,"2026");hi.str(4,"ens1-aa-bridge-moto-v43");
-  hi.str(5,"OpenHU");hi.str(6,"eNS1 Bridge");hi.str(7,"1");hi.str(8,"4.3");hi.v(9,3);
+  PB hi=new PB();hi.str(1,"Honda");hi.str(2,"e:NS1");hi.str(3,"2026");hi.str(4,"ens1-aa-bridge-moto-v44");
+  hi.str(5,"OpenHU");hi.str(6,"eNS1 Bridge");hi.str(7,"1");hi.str(8,"4.4");hi.v(9,3);
   r.msg(17,hi.b());
   return r.b();
  }
