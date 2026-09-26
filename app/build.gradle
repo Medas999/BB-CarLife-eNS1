@@ -11,8 +11,8 @@ android {
         applicationId "com.med999.ens1mirror"
         minSdk 23
         targetSdk 28
-        versionCode 241
-        versionName "2.4.1-spotify-callback-fix"
+        versionCode 250
+        versionName "2.5-navigation-stage1"
     }
 
     buildTypes {
@@ -38,6 +38,7 @@ dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.protobuf:protobuf-javalite:3.25.5'
+    implementation 'org.maplibre.gl:android-sdk:11.8.0'
 }
 
 protobuf {
