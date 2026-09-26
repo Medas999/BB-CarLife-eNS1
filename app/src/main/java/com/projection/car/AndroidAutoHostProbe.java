@@ -22,14 +22,14 @@ public final class AndroidAutoHostProbe {
  private static void run(Listener l){
   Socket s=new Socket(); socket=s;
   try{
-   log("AA_V38 MODE=single-shot endpoint=127.0.0.1:5277");
-   log("AA_V38 NOTE one connection only; no reconnect matrix (5277 accept loop can be parked by a silent peer)");
+   log("AA_V39 MODE=single-shot endpoint=127.0.0.1:5277");
+   log("AA_V39 NOTE one connection only; no reconnect matrix (5277 accept loop can be parked by a silent peer)");
    long t=System.currentTimeMillis();
    s.connect(new InetSocketAddress("127.0.0.1",5277),3000);
    s.setTcpNoDelay(true); s.setKeepAlive(true); s.setSoTimeout(500);
-   log("AA_V38 CONNECTED ms="+(System.currentTimeMillis()-t)+" local="+s.getLocalAddress()+":"+s.getLocalPort()+" remote="+s.getRemoteSocketAddress());
+   log("AA_V39 CONNECTED ms="+(System.currentTimeMillis()-t)+" local="+s.getLocalAddress()+":"+s.getLocalPort()+" remote="+s.getRemoteSocketAddress());
    InputStream in=s.getInputStream(); OutputStream out=s.getOutputStream();
-   log("AA_V38 TX VERSION_REQUEST requested=1.2 framedBytes=10 hex="+hex(VERSION_12,64));
+   log("AA_V39 TX VERSION_REQUEST requested=1.2 framedBytes=10 hex="+hex(VERSION_12,64));
    out.write(VERSION_12); out.flush();
 
    ByteArrayOutputStream rx=new ByteArrayOutputStream(); byte[] b=new byte[4096];
@@ -37,13 +37,13 @@ public final class AndroidAutoHostProbe {
    while(running && System.currentTimeMillis()<deadline){
     try{
      int n=in.read(b);
-     if(n<0){log("AA_V38 EOF afterMs="+(System.currentTimeMillis()-start)+" rx="+rx.size());break;}
+     if(n<0){log("AA_V39 EOF afterMs="+(System.currentTimeMillis()-start)+" rx="+rx.size());break;}
      if(n>0){
       rx.write(b,0,n);
-      log("AA_V38 RX bytes="+n+" total="+rx.size()+" afterMs="+(System.currentTimeMillis()-start)+" hex="+hex(copy(b,n),512));
+      log("AA_V39 RX bytes="+n+" total="+rx.size()+" afterMs="+(System.currentTimeMillis()-start)+" hex="+hex(copy(b,n),512));
       Version v=parseVersion(rx.toByteArray());
       if(v!=null){
-       log("AA_V38 VERSION_RESPONSE negotiated="+v.major+"."+v.minor+" status=0x"+String.format(Locale.US,"%04X",v.status));
+       log("AA_V39 VERSION_RESPONSE negotiated="+v.major+"."+v.minor+" status=0x"+String.format(Locale.US,"%04X",v.status));
        if(l!=null)l.onResult(v.status==0,"AA version "+v.major+"."+v.minor+" status="+v.status);
        break;
       }
@@ -51,24 +51,18 @@ public final class AndroidAutoHostProbe {
     }catch(SocketTimeoutException ignored){}
    }
    if(rx.size()==0){
-    log("AA_V38 SILENT_5277 12000ms: TCP accepted but Head Unit Server did not service VERSION_REQUEST");
-    log("AA_V38 RECOVERY_HINT: stop then start Android Auto Head Unit Server before next attempt; do not retry sockets");
+    log("AA_V39 SILENT_5277 12000ms: TCP accepted but Head Unit Server did not service VERSION_REQUEST");
+    log("AA_V39 RECOVERY_HINT: stop then start Android Auto Head Unit Server before next attempt; do not retry sockets");
     if(l!=null)l.onResult(false,"AA 5277 silent; restart Head Unit Server then retry once");
-   } else log("AA_V38 RX_TOTAL bytes="+rx.size()+" hex="+hex(rx.toByteArray(),1024));
+   } else log("AA_V39 RX_TOTAL bytes="+rx.size()+" hex="+hex(rx.toByteArray(),1024));
   }catch(Throwable e){
-   log("AA_V38 END "+e.getClass().getSimpleName()+": "+e.getMessage());
+   log("AA_V39 END "+e.getClass().getSimpleName()+": "+e.getMessage());
    if(l!=null)l.onResult(false,"AA: "+e.getClass().getSimpleName()+": "+e.getMessage());
-  }finally{running=false;try{s.close();}catch(Throwable ignored){}if(socket==s)socket=null;log("AA_V38 COMPLETE");}
+  }finally{running=false;try{s.close();}catch(Throwable ignored){}if(socket==s)socket=null;log("AA_V39 COMPLETE");}
  }
 
  private static Version parseVersion(byte[] a){
-  // Expected plaintext response: 00 00 | 00 02 | major(2) | minor(2) | status(2)
-  for(int o=0;o+9<a.length;o++){
-   if((a[o]&255)==0&&(a[o+1]&255)==0&&(a[o+2]&255)==0&&(a[o+3]&255)==2){
-    return new Version(u16(a,o+4),u16(a,o+6),u16(a,o+8));
-   }
-  }
-  // Also log-compatible with a 4-byte [channel flags len] header if encountered.
+  // AAP response: channel, flags, length, type=0002, major, minor, status.
   for(int o=0;o+11<a.length;o++){
    if((a[o]&255)==0&&(a[o+4]&255)==0&&(a[o+5]&255)==2)
     return new Version(u16(a,o+6),u16(a,o+8),u16(a,o+10));
