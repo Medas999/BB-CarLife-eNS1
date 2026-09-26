@@ -125,7 +125,7 @@ public class MediaCodecTool {
         String time=new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date());
         p.setTextSize(28);p.setColor(Color.WHITE);c.drawText(time,895,59,p);
 
-        String[] names={"Навигация","YouTube","YouTube Music","Музыка","Настройки"};
+        String[] names={"Навигация","YouTube","Spotify","Музыка","Настройки"};
         if(page>0){ drawPage(c,p,page); c.restore(); return; }
         String[] subs={"Карты • маршруты","Видео • подписки","Треки • плейлисты","Медиатека","Экран • звук"};
         int[] accents={Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
@@ -180,10 +180,10 @@ public class MediaCodecTool {
         else if(action==1){
             int hit=hitTile(x,y);
             if(hit>=0 && hit==pressed) page=hit+1;
-            else if(y>=672) page=0;
+            else if(page>0 && (y>=540 || (x>=45 && x<=300 && y>=530))) page=0;
             pressed=-1;
         }
-        log("CAR UI TOUCH action="+action+" x="+x+" y="+y+" tile="+pressed+" page="+page);
+        log("CAR UI TOUCH CAL raw="+rawX+","+rawY+" mapped="+x+","+y+" surface="+width+"x"+height+" action="+action+" tile="+pressed+" page="+page);
     }
 
     private int hitTile(float x,float y){
@@ -193,17 +193,17 @@ public class MediaCodecTool {
     }
 
     private void drawPage(Canvas c,Paint p,int pg){
-        String[] title={"","Навигация","YouTube","YouTube Music","Музыка","Настройки"};
+        String[] title={"","Навигация","YouTube","Spotify","Музыка","Настройки"};
         int[] accent={0,Color.rgb(20,165,255),Color.rgb(245,30,45),Color.rgb(225,30,80),Color.rgb(132,68,245),Color.rgb(90,145,185)};
         p.setColor(Color.argb(225,7,25,43));c.drawRoundRect(new RectF(30,106,994,650),28,28,p);
         p.setColor(accent[pg]);c.drawRoundRect(new RectF(55,132,145,222),24,24,p);drawIcon(c,p,pg-1,100,177,34,Color.WHITE);
         p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));p.setTextSize(42);p.setColor(Color.WHITE);c.drawText(title[pg],175,188,p);
         p.setTypeface(Typeface.DEFAULT);p.setTextSize(22);p.setColor(Color.rgb(160,195,220));c.drawText("Раздел подключён к Car UI • этап 2",175,226,p);
         p.setTextSize(25);p.setColor(Color.WHITE);
-        c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты YouTube Music":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
+        c.drawText(pg==1?"Карты и построение маршрута":pg==2?"Видео и поиск YouTube":pg==3?"Музыка и плейлисты Spotify":pg==4?"Локальная медиатека и проигрыватель":"Настройки автомобильного интерфейса",70,320,p);
         p.setColor(withAlpha(accent[pg],70));c.drawRoundRect(new RectF(70,365,954,535),24,24,p);
         p.setTextSize(22);p.setColor(Color.rgb(205,225,238));c.drawText("Тач Honda работает. Функции этого раздела",105,430,p);c.drawText("будут подключаться на следующих этапах.",105,470,p);
-        p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(70,570,255,625),18,18,p);p.setColor(Color.WHITE);p.setTextSize(20);c.drawText("‹  На главную",95,606,p);
+        p.setColor(Color.rgb(40,165,255));c.drawRoundRect(new RectF(55,545,330,635),22,22,p);p.setColor(Color.WHITE);p.setTextSize(24);p.setTypeface(Typeface.create(Typeface.DEFAULT,Typeface.BOLD));c.drawText("‹  На главную",90,600,p);p.setTypeface(Typeface.DEFAULT);
     }
 
     private int withAlpha(int color,int alpha){
